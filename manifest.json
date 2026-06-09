@@ -1,0 +1,10 @@
+{
+  "name": "Terrain Viewer",
+  "short_name": "Terrain",
+  "description": "3D terrain chunk — drag to orbit, pinch to zoom",
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d1b2a",
+  "theme_color": "#0d1b2a"
+}
