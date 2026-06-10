@@ -235,6 +235,19 @@
       text-decoration: none; margin-top: 8px;
     }
     .call-btn:active { opacity: 0.8; }
+
+    .cal-btns {
+      display: flex; gap: 8px; margin-bottom: 12px;
+    }
+    .cal-btn {
+      flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 9px 6px; border-radius: 10px;
+      font-size: 13px; font-weight: 600;
+      text-decoration: none; border: none; cursor: pointer;
+    }
+    .cal-btn:active { opacity: 0.7; }
+    .cal-btn-google { background: #e8f0fe; color: #1a73e8; }
+    .cal-btn-apple  { background: #f0f0f0; color: #1c1c1e; }
   </style>
 </head>
 <body>
@@ -311,6 +324,33 @@ if      (today < '2026-06-11') statusEl.textContent = 'Owners leave Jun 10 · Re
 else if (today > '2026-06-13') statusEl.textContent = 'Owners return Jun 14 — thank you! 🙏';
 else                           statusEl.textContent  = 'Jun 10–14 · Thank you for taking care of them! 🙏';
 
+// ── Calendar ───────────────────────────────────────────────────────────────
+function dateStamp(date) { return date.replace(/-/g, ''); }
+function nextDay(date) {
+  const d = new Date(date); d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10).replace(/-/g, '');
+}
+function gcalUrl(date) {
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=Cat+Sitter+Visit&dates=${dateStamp(date)}/${nextDay(date)}&details=Look+after+Ruski%2C+Evi+%26+Kiara`;
+}
+function addToAppleCal(date) {
+  const ics = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Cat Sitter//EN',
+    'BEGIN:VEVENT',
+    `DTSTART;VALUE=DATE:${dateStamp(date)}`,
+    `DTEND;VALUE=DATE:${nextDay(date)}`,
+    'SUMMARY:Cat Sitter Visit',
+    'DESCRIPTION:Look after Ruski\\, Evi & Kiara',
+    'END:VEVENT', 'END:VCALENDAR'
+  ].join('\r\n');
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([ics], {type: 'text/calendar'})),
+    download: `cat-sitter-${date}.ics`
+  });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
 // ── Tasks ──────────────────────────────────────────────────────────────────
 function renderTasks() {
   const p = document.getElementById('panel-tasks');
@@ -329,6 +369,10 @@ function renderTasks() {
       <div class="day-header">
         <span class="day-name">${label}</span>
         ${isToday ? '<span class="today-badge">TODAY</span>' : ''}
+      </div>
+      <div class="cal-btns">
+        <a class="cal-btn cal-btn-google" href="${gcalUrl(date)}" target="_blank" rel="noopener">📅 Google Calendar</a>
+        <button class="cal-btn cal-btn-apple" onclick="addToAppleCal('${date}')">🍎 Apple Calendar</button>
       </div>
       <div class="progress-row">
         <div class="prog-bar"><div class="prog-fill" id="fill-${date}"></div></div>
