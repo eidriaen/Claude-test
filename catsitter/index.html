@@ -216,6 +216,16 @@
     .info-val  { font-size: 16px; font-weight: 600; }
     .code-val  { font-size: 30px; font-weight: 800; letter-spacing: 7px; color: var(--accent); }
 
+    .door-photo {
+      width: 100%; border-radius: 10px;
+      display: block; margin-top: 10px;
+      object-fit: cover; max-height: 220px;
+    }
+    .door-photo-caption {
+      font-size: 12px; color: var(--muted);
+      text-align: center; margin-top: 6px;
+    }
+
     .call-btn {
       display: flex; align-items: center; justify-content: center; gap: 10px;
       background: var(--accent); color: white;
@@ -402,6 +412,8 @@ function renderInfo() {
           <div class="info-val">Terrace door</div>
         </div>
       </div>
+      <img src="terrace-door.jpg" alt="Terrace door keypad" class="door-photo">
+      <p class="door-photo-caption">Terrace door — Yale keypad lock</p>
     </div>
 
     <div class="section-title">Contact</div>
