@@ -201,6 +201,9 @@
       font-size: 14px; line-height: 1.4;
       display: flex; gap: 8px; align-items: flex-start;
     }
+    .health-box {
+      background: #e8f4fd; border-color: #90caf9;
+    }
 
     /* ── Info panel ── */
     .info-row {
@@ -284,12 +287,14 @@ const CATS = [
     meta: 'Female · Mum of Kiara · Neva Masquerade',
     traits: ['Fluffy', 'Grumpy', 'Cuddly', 'A bit skittish lately'],
     warnings: ['Loves the outdoors — be very careful when opening any doors!'],
+    health: ['Asthma'],
   },
   {
     name: 'Kiara', photo: 'cat-kiara.jpg', photoPos: 'center bottom',
     meta: 'Female · Daughter of Evi · Neva Masquerade',
     traits: ['Fluffy', 'Weird', 'Not so cuddly', 'Massive FOMO'],
     warnings: ['Will follow the other two cats wherever they go — watch all three at once near doors!'],
+    health: ['Asthma'],
   },
 ];
 
@@ -385,6 +390,7 @@ function renderCats() {
         <div class="cat-meta">${c.meta}</div>
       </div>
       <div class="tags">${c.traits.map(t => `<span class="tag">${t}</span>`).join('')}</div>
+      ${c.health ? c.health.map(h => `<div class="warn-box health-box">🩺 <span>${h}</span></div>`).join('') : ''}
       ${c.warnings.map(w => `<div class="warn-box">⚠️ <span>${w}</span></div>`).join('')}
     `;
     p.appendChild(el);
@@ -488,6 +494,27 @@ function renderInfo() {
           <div class="info-lbl">Water</div>
           <div class="info-val">Top up fresh water each visit</div>
         </div>
+      </div>
+    </div>
+
+    <div class="section-title">Emergency</div>
+    <div class="card">
+      <div class="info-row">
+        <span class="info-icon">🏥</span>
+        <div>
+          <div class="info-lbl">Nearest animal hospital</div>
+          <div class="info-val">AniCura Dyresykehus Oslo</div>
+        </div>
+      </div>
+      <div style="padding: 0 16px 12px; display:flex; flex-direction:column; gap:10px;">
+        <a href="https://maps.app.goo.gl/aCrAUZywuhHzbcM68?g_st=ic" target="_blank" rel="noopener"
+           style="display:flex; align-items:center; gap:8px; background:#f0f7f0; border:1.5px solid #81c784; border-radius:10px; padding:12px; text-decoration:none; color:inherit; font-size:15px; font-weight:600;">
+          🗺️ Open in Maps
+        </a>
+        <a href="tel:+4721525300"
+           style="display:flex; align-items:center; gap:8px; background:#f0f7ff; border:1.5px solid #90caf9; border-radius:10px; padding:12px; text-decoration:none; color:inherit; font-size:15px; font-weight:600;">
+          📞 21 52 53 00
+        </a>
       </div>
     </div>
   `;
