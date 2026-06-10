@@ -1,5 +1,5 @@
-const CACHE = 'terrain-v1';
-const PRECACHE = ['.', 'index.html', 'manifest.json'];
+const CACHE = 'terrain-v3';
+const PRECACHE = ['index.html', 'manifest.json'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(PRECACHE)));
