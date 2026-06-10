@@ -40,6 +40,7 @@
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
+    // ── Renderer ──────────────────────────────────────────────────────────────
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -54,7 +55,6 @@
     const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 100);
     camera.position.set(0, 10, 16);
 
-    // OrbitControls handles one-finger rotate and two-finger pinch natively on iOS
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
@@ -62,74 +62,310 @@
     controls.minDistance = 4;
     controls.maxDistance = 50;
 
-    // Terrain
-    const SIZE = 20;
-    const SEG = 80;
+    // ── Terrain ───────────────────────────────────────────────────────────────
+    function terrainH(x, z) {
+      return Math.sin(x * 0.25) * Math.cos(z * 0.30) * 2.0
+           + Math.sin(x * 0.60 + 1.2) * Math.sin(z * 0.40 + 0.5) * 0.8
+           + Math.cos(x * 0.12 + z * 0.18) * 1.2
+           + Math.sin(x * 1.10) * Math.cos(z * 0.90) * 0.3;
+    }
+
+    const SIZE = 20, SEG = 80;
     const geo = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG);
     geo.rotateX(-Math.PI / 2);
 
     const pos = geo.attributes.position;
     const colorData = new Float32Array(pos.count * 3);
-
     for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i);
-      const z = pos.getZ(i);
-
-      const h = Math.sin(x * 0.25) * Math.cos(z * 0.30) * 2.0
-              + Math.sin(x * 0.60 + 1.2) * Math.sin(z * 0.40 + 0.5) * 0.8
-              + Math.cos(x * 0.12 + z * 0.18) * 1.2
-              + Math.sin(x * 1.10) * Math.cos(z * 0.90) * 0.3;
-
-      pos.setY(i, h);
-
-      // Dark valley green → bright peak green
-      const t = Math.max(0, Math.min(1, (h + 2) / 5));
+      const x = pos.getX(i), z = pos.getZ(i);
+      pos.setY(i, terrainH(x, z));
+      const t = Math.max(0, Math.min(1, (terrainH(x, z) + 2) / 5));
       colorData[i * 3 + 0] = 0.04 + t * 0.22;
       colorData[i * 3 + 1] = 0.22 + t * 0.42;
       colorData[i * 3 + 2] = 0.04 + t * 0.06;
     }
-
     geo.computeVertexNormals();
     geo.setAttribute('color', new THREE.BufferAttribute(colorData, 3));
 
-    const terrain = new THREE.Mesh(
-      geo,
-      new THREE.MeshLambertMaterial({ vertexColors: true })
-    );
+    const terrain = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
     terrain.receiveShadow = true;
     scene.add(terrain);
-
-    // Subtle wireframe overlay
     scene.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-      color: 0x52b788,
-      wireframe: true,
-      transparent: true,
-      opacity: 0.07,
+      color: 0x52b788, wireframe: true, transparent: true, opacity: 0.07,
     })));
 
-    // Lighting
-    scene.add(new THREE.AmbientLight(0x6a8fc8, 0.9));
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    function castAll(group) {
+      group.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    }
 
+    // Cylinder segment between two Vector3 points
+    function seg(parent, a, b, radius, mat) {
+      const dir = b.clone().sub(a);
+      const len = dir.length();
+      if (len < 0.001) return;
+      const cyl = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, len, 5), mat);
+      cyl.position.copy(a.clone().add(b).multiplyScalar(0.5));
+      cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+      parent.add(cyl);
+    }
+
+    const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
+
+    // ── Radio Tower ───────────────────────────────────────────────────────────
+    function makeTower() {
+      const g = new THREE.Group();
+      const steel = new THREE.MeshLambertMaterial({ color: 0x8899aa });
+
+      const levels  = [0, 2, 4, 6, 8, 10];
+      const spreads = [1.8, 1.4, 1.0, 0.62, 0.32, 0.14];
+      const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+
+      // Tapered legs
+      for (let i = 0; i < levels.length - 1; i++) {
+        const [y0, y1] = [levels[i], levels[i + 1]];
+        const [s0, s1] = [spreads[i], spreads[i + 1]];
+        corners.forEach(([cx, cz]) =>
+          seg(g, v3(cx * s0, y0, cz * s0), v3(cx * s1, y1, cz * s1), 0.055, steel));
+      }
+
+      // Horizontal rings at each level
+      levels.forEach((y, i) => {
+        const s = spreads[i];
+        for (let j = 0; j < 4; j++) {
+          const [cx0, cz0] = corners[j], [cx1, cz1] = corners[(j + 1) % 4];
+          seg(g, v3(cx0 * s, y, cz0 * s), v3(cx1 * s, y, cz1 * s), 0.035, steel);
+        }
+      });
+
+      // Diagonal braces between levels
+      for (let i = 0; i < levels.length - 1; i++) {
+        const [y0, y1] = [levels[i], levels[i + 1]];
+        const [s0, s1] = [spreads[i], spreads[i + 1]];
+        corners.forEach(([cx, cz], j) => {
+          const [ncx, ncz] = corners[(j + 1) % 4];
+          seg(g, v3(cx * s0, y0, cz * s0), v3(ncx * s1, y1, ncz * s1), 0.025, steel);
+        });
+      }
+
+      // Top antenna mast
+      seg(g, v3(0, 10, 0), v3(0, 13.2, 0), 0.024, steel);
+
+      // Small cross arms on antenna
+      [10.5, 11.5, 12.5].forEach(y => {
+        seg(g, v3(-0.3, y, 0), v3(0.3, y, 0), 0.018, steel);
+        seg(g, v3(0, y, -0.3), v3(0, y, 0.3), 0.018, steel);
+      });
+
+      // Blinking warning light
+      const lightMat = new THREE.MeshBasicMaterial({ color: 0xff2200 });
+      const light = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), lightMat);
+      light.position.y = 13.3;
+      g.add(light);
+      g.userData.light = light;
+
+      castAll(g);
+      return g;
+    }
+
+    // ── UAV Plane ─────────────────────────────────────────────────────────────
+    // Oriented with nose at +Z, tail at -Z. rotation.y steers direction.
+    function makePlane() {
+      const g = new THREE.Group();
+      const bodyMat = new THREE.MeshLambertMaterial({ color: 0xc8c8c0 });
+      const wingMat = new THREE.MeshLambertMaterial({ color: 0xb0b0a8 });
+      const darkMat = new THREE.MeshLambertMaterial({ color: 0x282828 });
+
+      // Fuselage — CylinderGeometry along Y, rotated to align with Z
+      const fuse = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.09, 2.2, 8), bodyMat);
+      fuse.rotation.x = Math.PI / 2;
+      g.add(fuse);
+
+      // Nose cone
+      const nose = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.45, 8), bodyMat);
+      nose.rotation.x = -Math.PI / 2;
+      nose.position.z = 1.32;
+      g.add(nose);
+
+      // Main wings
+      const mainWing = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.055, 0.52), wingMat);
+      mainWing.position.z = 0.15;
+      g.add(mainWing);
+
+      // Upturned wing tips (winglets)
+      [-1, 1].forEach(side => {
+        const tip = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.05, 0.38), wingMat);
+        tip.position.set(side * 2.17, 0.12, 0.15);
+        tip.rotation.z = side * 0.28;
+        g.add(tip);
+      });
+
+      // Horizontal stabilizers
+      const hStab = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.045, 0.28), wingMat);
+      hStab.position.z = -0.88;
+      g.add(hStab);
+
+      // Vertical fin
+      const vFin = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.42, 0.28), wingMat);
+      vFin.position.set(0, 0.21, -0.88);
+      g.add(vFin);
+
+      // Pusher engine nacelle at tail
+      const eng = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.07, 0.28, 8), darkMat);
+      eng.rotation.x = Math.PI / 2;
+      eng.position.z = -0.88;
+      g.add(eng);
+
+      // Blurred prop disc (static — already blurred looking)
+      const propMat = new THREE.MeshBasicMaterial({
+        color: 0x333333, transparent: true, opacity: 0.22, side: THREE.DoubleSide,
+      });
+      const prop = new THREE.Mesh(new THREE.CircleGeometry(0.22, 16), propMat);
+      prop.position.z = -1.03;
+      g.add(prop);
+
+      castAll(g);
+      return g;
+    }
+
+    // ── Small Drone ───────────────────────────────────────────────────────────
+    function makeDrone() {
+      const g = new THREE.Group();
+      const bodyMat  = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+      const armMat   = new THREE.MeshLambertMaterial({ color: 0x2a2a2a });
+      const motorMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+      const rotorMat = new THREE.MeshBasicMaterial({
+        color: 0x999999, transparent: true, opacity: 0.32, side: THREE.DoubleSide,
+      });
+
+      // Central body
+      g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.07, 8), bodyMat));
+
+      // Camera dome (bottom)
+      const dome = new THREE.Mesh(
+        new THREE.SphereGeometry(0.075, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2),
+        new THREE.MeshLambertMaterial({ color: 0x0a0a0a })
+      );
+      dome.rotation.x = Math.PI;
+      dome.position.y = -0.035;
+      g.add(dome);
+
+      const rotorGroups = [];
+      const ARM = 0.46;
+
+      [45, 135, 225, 315].forEach((deg, i) => {
+        const rad = deg * Math.PI / 180;
+        const tx = Math.cos(rad) * ARM, tz = Math.sin(rad) * ARM;
+
+        // Arm
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(ARM, 0.032, 0.032), armMat);
+        arm.position.set(tx / 2, 0, tz / 2);
+        arm.rotation.y = -rad;
+        g.add(arm);
+
+        // Motor
+        const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.042, 8), motorMat);
+        motor.position.set(tx, 0.024, tz);
+        g.add(motor);
+
+        // Rotor group — spin via rotorGroup.rotation.y
+        const rg = new THREE.Group();
+        rg.position.set(tx, 0.055, tz);
+        const disc = new THREE.Mesh(new THREE.CircleGeometry(0.12, 10), rotorMat);
+        disc.rotation.x = -Math.PI / 2;
+        rg.add(disc);
+        g.add(rg);
+        rotorGroups.push({ group: rg, dir: i % 2 === 0 ? 1 : -1 });
+      });
+
+      // Landing legs
+      [0, 90, 180, 270].forEach(deg => {
+        const rad = deg * Math.PI / 180;
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.17, 4), armMat);
+        leg.position.set(Math.cos(rad) * 0.13, -0.1, Math.sin(rad) * 0.13);
+        g.add(leg);
+      });
+
+      // Navigation LEDs
+      const redLed   = new THREE.Mesh(new THREE.SphereGeometry(0.02, 4, 4), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
+      redLed.position.set(0.12, 0.04, 0);
+      g.add(redLed);
+      const greenLed = new THREE.Mesh(new THREE.SphereGeometry(0.02, 4, 4), new THREE.MeshBasicMaterial({ color: 0x00ff44 }));
+      greenLed.position.set(-0.12, 0.04, 0);
+      g.add(greenLed);
+
+      g.userData.rotorGroups = rotorGroups;
+      castAll(g);
+      return g;
+    }
+
+    // ── Place objects ─────────────────────────────────────────────────────────
+    const tower = makeTower();
+    tower.position.set(-1, terrainH(-1, -8), -8);
+    scene.add(tower);
+
+    const plane = makePlane();
+    scene.add(plane);
+    const PLANE_R = 4.5, PLANE_Y = 7.5;
+
+    const DRONE_OX = 7, DRONE_OZ = 7;
+    const drone = makeDrone();
+    drone.position.set(DRONE_OX, terrainH(DRONE_OX, DRONE_OZ) + 2.2, DRONE_OZ);
+    scene.add(drone);
+
+    // ── Lights ────────────────────────────────────────────────────────────────
+    scene.add(new THREE.AmbientLight(0x6a8fc8, 0.9));
     const sun = new THREE.DirectionalLight(0xffe8c0, 1.4);
     sun.position.set(12, 20, 8);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
-    Object.assign(sun.shadow.camera, { left: -15, right: 15, top: 15, bottom: -15, near: 0.1, far: 60 });
+    Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 16, bottom: -16, near: 0.1, far: 70 });
     scene.add(sun);
 
+    // ── Resize ────────────────────────────────────────────────────────────────
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    // Hide hint on first interaction
     renderer.domElement.addEventListener('pointerdown', () => {
       document.getElementById('hint').style.opacity = '0';
     }, { once: true });
 
+    // ── Animate ───────────────────────────────────────────────────────────────
+    const clock = new THREE.Clock();
+    let elapsed = 0;
+
     (function animate() {
       requestAnimationFrame(animate);
+      elapsed += clock.getDelta();
+      const t = elapsed;
+
+      // Tower warning light blink (~1 Hz)
+      tower.userData.light.visible = Math.floor(t * 1.1) % 2 === 0;
+
+      // UAV plane circles the landscape
+      const pa = t * 0.35;
+      plane.position.set(
+        Math.cos(pa) * PLANE_R,
+        PLANE_Y + Math.sin(t * 0.6) * 0.35,
+        Math.sin(pa) * PLANE_R
+      );
+      plane.rotation.y = -pa;
+
+      // Drone hovers and drifts in a small circle
+      const da = t * 0.28;
+      const dx = DRONE_OX + Math.cos(da) * 0.5;
+      const dz = DRONE_OZ + Math.sin(da) * 0.5;
+      drone.position.set(dx, terrainH(dx, dz) + 2.2 + Math.sin(t * 2.1) * 0.13, dz);
+      drone.rotation.y = da * 0.6;
+
+      // Rotor spin (alternating directions)
+      drone.userData.rotorGroups.forEach(({ group, dir }) => {
+        group.rotation.y += dir * 0.38;
+      });
+
       controls.update();
       renderer.render(scene, camera);
     })();
