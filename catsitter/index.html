@@ -236,6 +236,27 @@
     }
     .call-btn:active { opacity: 0.8; }
 
+    .lock-prompt {
+      text-align: center; padding: 8px 0 4px;
+    }
+    .lock-input-row {
+      display: flex; gap: 8px; margin-top: 12px;
+    }
+    .lock-input-row input {
+      flex: 1; padding: 11px 14px; border-radius: 10px;
+      border: 1.5px solid var(--border); font-size: 16px;
+      background: var(--bg); color: var(--text);
+      outline: none;
+    }
+    .lock-input-row input:focus { border-color: var(--accent); }
+    .lock-input-row button {
+      padding: 11px 18px; border-radius: 10px;
+      background: var(--accent); color: white;
+      border: none; font-size: 15px; font-weight: 700; cursor: pointer;
+    }
+    .lock-input-row button:active { opacity: 0.8; }
+    .lock-msg { font-size: 13px; margin-top: 10px; min-height: 18px; }
+
     .cal-btns {
       display: flex; gap: 8px; margin-bottom: 12px;
     }
@@ -445,14 +466,64 @@ function renderCats() {
   });
 }
 
+// ── Door code unlock ───────────────────────────────────────────────────────
+const _S = 'c83e0f8bc0d2b25f3b2a9e602a69550a';
+const _A = ['ae90f84c4ecf68c17d91cfcd8000ef9094824088e84aa8a9ab99b4a275d1b8b2'];
+const _E = '06158e28e214';
+let _attempts = 0;
+
+async function _h(s) {
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2,'0')).join('');
+}
+
+async function tryUnlock() {
+  const msg = document.getElementById('lock-msg');
+  if (_attempts >= 5) { msg.textContent = 'Too many attempts — contact the owners.'; return; }
+  const num = document.getElementById('phone-input').value.replace(/\D/g,'');
+  if (!num) return;
+  const hash = await _h(num + _S);
+  if (_A.includes(hash)) {
+    const saltBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(_S));
+    const saltBytes = new Uint8Array(saltBuf);
+    const code = _E.match(/.{2}/g).map((h,i) => String.fromCharCode(parseInt(h,16) ^ saltBytes[i])).join('');
+    document.getElementById('code-display').textContent = code;
+    document.getElementById('code-locked').style.display  = 'none';
+    document.getElementById('code-revealed').style.display = 'block';
+  } else {
+    _attempts++;
+    const left = 5 - _attempts;
+    msg.style.color = left === 0 ? '#c62828' : '#e65100';
+    msg.textContent = left > 0
+      ? `Phone number not recognised. ${left} attempt${left!==1?'s':''} left.`
+      : 'Too many attempts — contact the owners.';
+  }
+}
+
 // ── Info ───────────────────────────────────────────────────────────────────
 function renderInfo() {
   document.getElementById('panel-info').innerHTML = `
     <div class="section-title">Door access</div>
     <div class="card">
-      <div class="info-row">
+      <div class="info-row" style="align-items:flex-start">
         <span class="info-icon">🔑</span>
-        <div><div class="info-lbl">Keypad code</div><div class="code-val">198601</div></div>
+        <div style="flex:1">
+          <div id="code-locked">
+            <div class="lock-prompt">
+              <span style="font-size:32px">🔒</span>
+              <div class="info-lbl" style="margin-top:6px">Enter your phone number to unlock the door code</div>
+              <div class="lock-input-row">
+                <input type="tel" id="phone-input" placeholder="93266996" inputmode="numeric" onkeydown="if(event.key==='Enter')tryUnlock()">
+                <button onclick="tryUnlock()">Unlock</button>
+              </div>
+              <div id="lock-msg" class="lock-msg"></div>
+            </div>
+          </div>
+          <div id="code-revealed" style="display:none">
+            <div class="info-lbl">Keypad code</div>
+            <div class="code-val" id="code-display"></div>
+          </div>
+        </div>
       </div>
       <div class="info-row">
         <span class="info-icon">🚪</span>
