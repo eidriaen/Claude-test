@@ -470,8 +470,6 @@ function renderCats() {
 const _S = 'c83e0f8bc0d2b25f3b2a9e602a69550a';
 const _A = ['0162a975a6d9d6cbe4402230673f0d03ee925ca8cb8a4241caa21b25e1f521f3'];
 const _E = '06158e28e214';
-let _attempts = 0;
-
 async function _h(s) {
   const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
   return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2,'0')).join('');
@@ -479,7 +477,6 @@ async function _h(s) {
 
 async function tryUnlock() {
   const msg = document.getElementById('lock-msg');
-  if (_attempts >= 5) { msg.textContent = 'Too many attempts — contact the owners.'; return; }
   const num = document.getElementById('phone-input').value.replace(/\D/g,'');
   if (!num) return;
   const hash = await _h(num + _S);
@@ -491,12 +488,8 @@ async function tryUnlock() {
     document.getElementById('code-locked').style.display  = 'none';
     document.getElementById('code-revealed').style.display = 'block';
   } else {
-    _attempts++;
-    const left = 5 - _attempts;
-    msg.style.color = left === 0 ? '#c62828' : '#e65100';
-    msg.textContent = left > 0
-      ? `Phone number not recognised. ${left} attempt${left!==1?'s':''} left.`
-      : 'Too many attempts — contact the owners.';
+    msg.style.color = '#e65100';
+    msg.textContent = 'Phone number not recognised.';
   }
 }
 
