@@ -1,0 +1,10 @@
+{
+  "name": "Cat Sitter Guide",
+  "short_name": "Cat Sitter",
+  "description": "Daily tasks and info for looking after Ruski, Evi & Kiara",
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#faf7f2",
+  "theme_color": "#d4700a"
+}

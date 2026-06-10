@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Cat Sitter">
+  <link rel="manifest" href="manifest.json">
+  <title>Cat Sitter</title>
+  <style>
+    :root {
+      --bg:        #faf7f2;
+      --card:      #ffffff;
+      --accent:    #d4700a;
+      --accent-lt: #fef3e7;
+      --text:      #1e1810;
+      --muted:     #7a6a58;
+      --border:    #e8ddd0;
+      --green:     #2e7d32;
+      --warn-bg:   #fffbea;
+      --warn-br:   #f5c400;
+      --shadow:    0 2px 10px rgba(0,0,0,0.07);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      padding-bottom: calc(68px + env(safe-area-inset-bottom));
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--accent);
+      color: white;
+      padding: 18px 20px 14px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+    header p  { font-size: 13px; opacity: 0.85; margin-top: 3px; }
+
+    /* ── Tab bar ── */
+    nav {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: white;
+      border-top: 1px solid var(--border);
+      display: flex;
+      padding-bottom: env(safe-area-inset-bottom);
+      z-index: 50;
+    }
+    .tab {
+      flex: 1;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 9px 0 6px;
+      font-size: 10px; font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      border: none; background: none;
+      gap: 3px;
+      transition: color 0.15s;
+    }
+    .tab.active { color: var(--accent); }
+    .tab-icon { font-size: 22px; line-height: 1; }
+
+    /* ── Panels ── */
+    .panel { display: none; padding: 16px; }
+    .panel.active { display: block; }
+
+    /* ── Generic card ── */
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    .section-title {
+      font-size: 12px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.9px;
+      color: var(--muted);
+      margin: 20px 0 8px;
+    }
+    .section-title:first-child { margin-top: 4px; }
+
+    /* ── Notice ── */
+    .notice {
+      background: var(--warn-bg);
+      border: 1.5px solid var(--warn-br);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 14px; line-height: 1.5;
+      margin-bottom: 12px;
+    }
+
+    /* ── Day cards ── */
+    .day-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .day-name { font-size: 17px; font-weight: 700; }
+    .today-badge {
+      background: var(--accent); color: white;
+      font-size: 11px; font-weight: 700;
+      padding: 3px 9px; border-radius: 100px;
+    }
+
+    .progress-row {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 10px;
+    }
+    .prog-bar {
+      flex: 1; height: 6px;
+      background: var(--border); border-radius: 3px; overflow: hidden;
+    }
+    .prog-fill {
+      height: 100%; background: var(--accent);
+      border-radius: 3px; transition: width 0.3s ease;
+    }
+    .prog-fill.complete { background: var(--green); }
+    .prog-label {
+      font-size: 13px; color: var(--muted);
+      min-width: 36px; text-align: right;
+    }
+
+    /* ── Task items ── */
+    .task {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 11px 0;
+      border-top: 1px solid var(--border);
+      cursor: pointer;
+      user-select: none;
+    }
+    .task:active { opacity: 0.6; }
+    .check {
+      width: 26px; height: 26px; flex-shrink: 0;
+      border-radius: 8px;
+      border: 2px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+      margin-top: 1px;
+    }
+    .task.done .check {
+      background: var(--green); border-color: var(--green);
+    }
+    .check-mark {
+      display: none; color: white; font-size: 15px; font-weight: 700;
+    }
+    .task.done .check-mark { display: block; }
+    .task-body { flex: 1; }
+    .task-label { font-size: 16px; line-height: 1.3; }
+    .task-sub   { font-size: 13px; color: var(--muted); margin-top: 2px; }
+    .task.done .task-label { text-decoration: line-through; color: var(--muted); }
+
+    .all-done-msg {
+      text-align: center;
+      font-size: 14px; font-weight: 600; color: var(--green);
+      padding: 8px 0 2px;
+    }
+
+    /* ── Cat cards ── */
+    .cat-card {
+      background: var(--card);
+      border-radius: 16px; overflow: hidden;
+      margin-bottom: 12px; box-shadow: var(--shadow);
+    }
+    .cat-top {
+      display: flex; align-items: center; gap: 14px;
+      padding: 16px;
+    }
+    .cat-avatar {
+      width: 58px; height: 58px; border-radius: 50%;
+      background: var(--accent-lt);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px; flex-shrink: 0;
+    }
+    .cat-name { font-size: 22px; font-weight: 700; }
+    .cat-meta { font-size: 13px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+
+    .tags {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      padding: 0 16px 12px;
+    }
+    .tag {
+      background: var(--accent-lt); color: var(--accent);
+      font-size: 13px; font-weight: 600;
+      padding: 4px 11px; border-radius: 100px;
+    }
+
+    .warn-box {
+      margin: 0 16px 16px;
+      background: var(--warn-bg);
+      border: 1.5px solid var(--warn-br);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 14px; line-height: 1.4;
+      display: flex; gap: 8px; align-items: flex-start;
+    }
+
+    /* ── Info panel ── */
+    .info-row {
+      display: flex; align-items: flex-start; gap: 14px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-icon { font-size: 22px; width: 32px; text-align: center; flex-shrink: 0; padding-top: 2px; }
+    .info-lbl  { font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+    .info-val  { font-size: 16px; font-weight: 600; }
+    .code-val  { font-size: 30px; font-weight: 800; letter-spacing: 7px; color: var(--accent); }
+
+    .call-btn {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      background: var(--accent); color: white;
+      font-size: 17px; font-weight: 700;
+      padding: 15px; border-radius: 14px;
+      text-decoration: none; margin-top: 8px;
+    }
+    .call-btn:active { opacity: 0.8; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🐱 Cat Sitter Guide</h1>
+  <p id="trip-status"></p>
+</header>
+
+<div id="panel-tasks" class="panel active"></div>
+<div id="panel-cats"  class="panel"></div>
+<div id="panel-info"  class="panel"></div>
+
+<nav>
+  <button class="tab active" onclick="switchTab('tasks',this)">
+    <span class="tab-icon">📋</span>Tasks
+  </button>
+  <button class="tab" onclick="switchTab('cats',this)">
+    <span class="tab-icon">🐱</span>Cats
+  </button>
+  <button class="tab" onclick="switchTab('info',this)">
+    <span class="tab-icon">🏠</span>Home
+  </button>
+</nav>
+
+<script>
+const VISIT_DAYS = [
+  { date: '2026-06-11', label: 'Thursday · June 11' },
+  { date: '2026-06-12', label: 'Friday · June 12' },
+  { date: '2026-06-13', label: 'Saturday · June 13' },
+];
+
+const TASKS = [
+  { id: 'feed',    icon: '🍽️', label: 'Refill chip-controlled feeders', sub: 'Dry food + wet food for all three cats' },
+  { id: 'water',   icon: '💧', label: 'Top up fresh water',             sub: 'Check all water bowls' },
+  { id: 'litter2', icon: '🧹', label: 'Scoop litter box — 2nd floor',  sub: '' },
+  { id: 'litter3', icon: '🧹', label: 'Scoop litter box — 3rd floor',  sub: '' },
+  { id: 'cuddle',  icon: '🤍', label: 'Quality time with the cats',    sub: 'They love cuddles!' },
+];
+
+const CATS = [
+  {
+    name: 'Ruski', emoji: '🐈',
+    meta: 'Male · Oldest · Neva Masquerade',
+    traits: ['Fluffy', 'Nice', 'Cuddly'],
+    warnings: ['Loves the outdoors — be very careful when opening any doors!'],
+  },
+  {
+    name: 'Evi', emoji: '🐈',
+    meta: 'Female · Mum of Kiara · Neva Masquerade',
+    traits: ['Fluffy', 'Nice', 'Cuddly', 'A bit skittish lately'],
+    warnings: ['Loves the outdoors — be very careful when opening any doors!'],
+  },
+  {
+    name: 'Kiara', emoji: '🐈',
+    meta: 'Female · Daughter of Evi · Neva Masquerade',
+    traits: ['Fluffy', 'Nice', 'Cuddly', 'Massive FOMO'],
+    warnings: ['Will follow the other two cats wherever they go — watch all three at once near doors!'],
+  },
+];
+
+// ── Storage ────────────────────────────────────────────────────────────────
+const key  = (d, id) => `cs_${d}_${id}`;
+const get  = (d, id) => localStorage.getItem(key(d, id)) === '1';
+const set  = (d, id, v) => localStorage.setItem(key(d, id), v ? '1' : '0');
+
+// ── Today ──────────────────────────────────────────────────────────────────
+const today = new Date().toISOString().slice(0, 10);
+
+const statusEl = document.getElementById('trip-status');
+if      (today < '2026-06-11') statusEl.textContent = 'Owners leave Jun 10 · Return Jun 14';
+else if (today > '2026-06-13') statusEl.textContent = 'Owners return Jun 14 — thank you! 🙏';
+else                           statusEl.textContent  = 'Jun 10–14 · Thank you for taking care of them! 🙏';
+
+// ── Tasks ──────────────────────────────────────────────────────────────────
+function renderTasks() {
+  const p = document.getElementById('panel-tasks');
+
+  if (today === '2026-06-10') {
+    p.insertAdjacentHTML('beforeend',
+      `<div class="notice">⚠️ <strong>Departure day:</strong> The owners will leave extra food and fresh water before they go. Your first visit is tomorrow, Thursday June 11.</div>`);
+  }
+
+  VISIT_DAYS.forEach(({ date, label }) => {
+    const isToday = date === today;
+    const card = document.createElement('div');
+    card.id = `day-${date}`;
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="day-header">
+        <span class="day-name">${label}</span>
+        ${isToday ? '<span class="today-badge">TODAY</span>' : ''}
+      </div>
+      <div class="progress-row">
+        <div class="prog-bar"><div class="prog-fill" id="fill-${date}"></div></div>
+        <span class="prog-label" id="plbl-${date}"></span>
+      </div>
+      ${TASKS.map(t => `
+        <div class="task${get(date,t.id)?' done':''}" id="t-${date}-${t.id}" onclick="toggle('${date}','${t.id}')">
+          <div class="check"><span class="check-mark">✓</span></div>
+          <div class="task-body">
+            <div class="task-label">${t.icon} ${t.label}</div>
+            ${t.sub ? `<div class="task-sub">${t.sub}</div>` : ''}
+          </div>
+        </div>`).join('')}
+    `;
+    p.appendChild(card);
+    refreshProgress(date);
+  });
+}
+
+function toggle(date, id) {
+  set(date, id, !get(date, id));
+  document.getElementById(`t-${date}-${id}`).classList.toggle('done', get(date, id));
+  refreshProgress(date);
+}
+
+function refreshProgress(date) {
+  const done = TASKS.filter(t => get(date, t.id)).length;
+  const total = TASKS.length;
+  const pct = Math.round(done / total * 100);
+  const complete = done === total;
+
+  const fill = document.getElementById(`fill-${date}`);
+  fill.style.width = pct + '%';
+  fill.classList.toggle('complete', complete);
+  document.getElementById(`plbl-${date}`).textContent = `${done}/${total}`;
+
+  const card = document.getElementById(`day-${date}`);
+  const existing = card.querySelector('.all-done-msg');
+  if (complete && !existing) {
+    card.insertAdjacentHTML('beforeend', `<div class="all-done-msg">✅ All done — great job!</div>`);
+  } else if (!complete && existing) {
+    existing.remove();
+  }
+}
+
+// ── Cats ───────────────────────────────────────────────────────────────────
+function renderCats() {
+  const p = document.getElementById('panel-cats');
+  p.insertAdjacentHTML('beforeend',
+    `<div class="notice">⚠️ <strong>Door warning:</strong> All three cats love the outdoors. Always check behind you before opening the front door or the terrace door.</div>`);
+
+  CATS.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'cat-card';
+    el.innerHTML = `
+      <div class="cat-top">
+        <div class="cat-avatar">${c.emoji}</div>
+        <div>
+          <div class="cat-name">${c.name}</div>
+          <div class="cat-meta">${c.meta}</div>
+        </div>
+      </div>
+      <div class="tags">${c.traits.map(t => `<span class="tag">${t}</span>`).join('')}</div>
+      ${c.warnings.map(w => `<div class="warn-box">⚠️ <span>${w}</span></div>`).join('')}
+    `;
+    p.appendChild(el);
+  });
+}
+
+// ── Info ───────────────────────────────────────────────────────────────────
+function renderInfo() {
+  document.getElementById('panel-info').innerHTML = `
+    <div class="section-title">Door access</div>
+    <div class="card">
+      <div class="info-row">
+        <span class="info-icon">🔑</span>
+        <div><div class="info-lbl">Keypad code</div><div class="code-val">198601</div></div>
+      </div>
+      <div class="info-row">
+        <span class="info-icon">🚪</span>
+        <div>
+          <div class="info-lbl">Entry points</div>
+          <div class="info-val">Front door</div>
+          <div class="info-val">Terrace door</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">Contact</div>
+    <div class="card">
+      <div class="info-row">
+        <span class="info-icon">📞</span>
+        <div><div class="info-lbl">Owners</div><div class="info-val">+47 93 26 69 96</div></div>
+      </div>
+      <a class="call-btn" href="tel:+4793266996">📞 &nbsp;Call the owners</a>
+    </div>
+
+    <div class="section-title">Trip dates</div>
+    <div class="card">
+      <div class="info-row">
+        <span class="info-icon">✈️</span>
+        <div><div class="info-lbl">Owners leave</div><div class="info-val">Wednesday, June 10</div></div>
+      </div>
+      <div class="info-row">
+        <span class="info-icon">🏡</span>
+        <div><div class="info-lbl">Owners return</div><div class="info-val">Sunday, June 14</div></div>
+      </div>
+      <div class="info-row">
+        <span class="info-icon">📅</span>
+        <div>
+          <div class="info-lbl">Your visit days</div>
+          <div class="info-val">Thu June 11</div>
+          <div class="info-val">Fri June 12</div>
+          <div class="info-val">Sat June 13</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">Quick notes</div>
+    <div class="card">
+      <div class="info-row">
+        <span class="info-icon">🍽️</span>
+        <div>
+          <div class="info-lbl">Feeders</div>
+          <div class="info-val">Chip-controlled — auto-opens per cat</div>
+        </div>
+      </div>
+      <div class="info-row">
+        <span class="info-icon">🧹</span>
+        <div>
+          <div class="info-lbl">Litter boxes</div>
+          <div class="info-val">2nd floor &amp; 3rd floor</div>
+        </div>
+      </div>
+      <div class="info-row">
+        <span class="info-icon">💧</span>
+        <div>
+          <div class="info-lbl">Water</div>
+          <div class="info-val">Top up fresh water each visit</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ── Tabs ───────────────────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(`panel-${name}`).classList.add('active');
+  btn.classList.add('active');
+}
+
+renderTasks();
+renderCats();
+renderInfo();
+</script>
+</body>
+</html>
