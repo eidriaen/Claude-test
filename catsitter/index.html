@@ -286,7 +286,7 @@ const CATS = [
     warnings: ['Loves the outdoors — be very careful when opening any doors!'],
   },
   {
-    name: 'Kiara', photo: 'cat-kiara.jpg',
+    name: 'Kiara', photo: 'cat-kiara.jpg', photoPos: 'center bottom',
     meta: 'Female · Daughter of Evi · Neva Masquerade',
     traits: ['Fluffy', 'Nice', 'Cuddly', 'Massive FOMO'],
     warnings: ['Will follow the other two cats wherever they go — watch all three at once near doors!'],
@@ -379,7 +379,7 @@ function renderCats() {
     const el = document.createElement('div');
     el.className = 'cat-card';
     el.innerHTML = `
-      <img src="${c.photo}" alt="${c.name}" class="cat-photo">
+      <img src="${c.photo}" alt="${c.name}" class="cat-photo"${c.photoPos ? ` style="object-position:${c.photoPos}"` : ''}>
       <div class="cat-top">
         <div class="cat-name">${c.name}</div>
         <div class="cat-meta">${c.meta}</div>
