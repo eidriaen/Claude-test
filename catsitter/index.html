@@ -171,15 +171,13 @@
       border-radius: 16px; overflow: hidden;
       margin-bottom: 12px; box-shadow: var(--shadow);
     }
-    .cat-top {
-      display: flex; align-items: center; gap: 14px;
-      padding: 16px;
+    .cat-photo {
+      width: 100%; height: 210px;
+      object-fit: cover; object-position: center top;
+      display: block;
     }
-    .cat-avatar {
-      width: 58px; height: 58px; border-radius: 50%;
-      background: var(--accent-lt);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 32px; flex-shrink: 0;
+    .cat-top {
+      padding: 14px 16px 10px;
     }
     .cat-name { font-size: 22px; font-weight: 700; }
     .cat-meta { font-size: 13px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
@@ -276,19 +274,19 @@ const TASKS = [
 
 const CATS = [
   {
-    name: 'Ruski', emoji: '🐈',
+    name: 'Ruski', photo: 'cat-ruski.jpg',
     meta: 'Male · Oldest · Neva Masquerade',
     traits: ['Fluffy', 'Nice', 'Cuddly'],
     warnings: ['Loves the outdoors — be very careful when opening any doors!'],
   },
   {
-    name: 'Evi', emoji: '🐈',
+    name: 'Evi', photo: 'cat-evi.jpg',
     meta: 'Female · Mum of Kiara · Neva Masquerade',
     traits: ['Fluffy', 'Nice', 'Cuddly', 'A bit skittish lately'],
     warnings: ['Loves the outdoors — be very careful when opening any doors!'],
   },
   {
-    name: 'Kiara', emoji: '🐈',
+    name: 'Kiara', photo: 'cat-kiara.jpg',
     meta: 'Female · Daughter of Evi · Neva Masquerade',
     traits: ['Fluffy', 'Nice', 'Cuddly', 'Massive FOMO'],
     warnings: ['Will follow the other two cats wherever they go — watch all three at once near doors!'],
@@ -381,12 +379,10 @@ function renderCats() {
     const el = document.createElement('div');
     el.className = 'cat-card';
     el.innerHTML = `
+      <img src="${c.photo}" alt="${c.name}" class="cat-photo">
       <div class="cat-top">
-        <div class="cat-avatar">${c.emoji}</div>
-        <div>
-          <div class="cat-name">${c.name}</div>
-          <div class="cat-meta">${c.meta}</div>
-        </div>
+        <div class="cat-name">${c.name}</div>
+        <div class="cat-meta">${c.meta}</div>
       </div>
       <div class="tags">${c.traits.map(t => `<span class="tag">${t}</span>`).join('')}</div>
       ${c.warnings.map(w => `<div class="warn-box">⚠️ <span>${w}</span></div>`).join('')}
