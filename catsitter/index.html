@@ -709,6 +709,7 @@ function switchTab(name, btn) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.getElementById(`panel-${name}`).classList.add('active');
   btn.classList.add('active');
+  window.scrollTo(0, 0);
 }
 
 renderTasks();
