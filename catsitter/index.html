@@ -285,7 +285,7 @@
 
 <nav>
   <button class="tab active" onclick="switchTab('tasks',this)">
-    <span class="tab-icon">📋</span>Tasks
+    <span class="tab-icon">📋</span>Cat sitting
   </button>
   <button class="tab" onclick="switchTab('cats',this)">
     <span class="tab-icon">🐱</span>Cats
@@ -406,6 +406,26 @@ function renderTasks() {
   const p = document.getElementById('panel-tasks');
 
   p.insertAdjacentHTML('beforeend', `
+    <div class="section-title" style="margin-top:4px">Trip dates</div>
+    <div class="card">
+      <div class="info-row">
+        <span class="info-icon">✈️</span>
+        <div><div class="info-lbl">Owners leave</div><div class="info-val">Wednesday, June 10</div></div>
+      </div>
+      <div class="info-row">
+        <span class="info-icon">🏡</span>
+        <div><div class="info-lbl">Owners return</div><div class="info-val">Sunday, June 14</div></div>
+      </div>
+      <div class="info-row">
+        <span class="info-icon">📅</span>
+        <div>
+          <div class="info-lbl">Your visit days</div>
+          <div class="info-val">Thu June 11</div>
+          <div class="info-val">Fri June 12</div>
+          <div class="info-val">Sat June 13</div>
+        </div>
+      </div>
+    </div>
     <div class="card" style="text-align:center">
       <div style="font-size:13px;color:var(--muted);margin-bottom:10px">Add all visit days to your calendar</div>
       <div class="cal-btns">
@@ -588,27 +608,6 @@ function renderInfo() {
            style="display:flex; align-items:center; gap:8px; background:#f0f7ff; border:1.5px solid #90caf9; border-radius:10px; padding:12px; text-decoration:none; color:inherit; font-size:15px; font-weight:600;">
           📞 21 52 53 00
         </a>
-      </div>
-    </div>
-
-    <div class="section-title">Trip dates</div>
-    <div class="card">
-      <div class="info-row">
-        <span class="info-icon">✈️</span>
-        <div><div class="info-lbl">Owners leave</div><div class="info-val">Wednesday, June 10</div></div>
-      </div>
-      <div class="info-row">
-        <span class="info-icon">🏡</span>
-        <div><div class="info-lbl">Owners return</div><div class="info-val">Sunday, June 14</div></div>
-      </div>
-      <div class="info-row">
-        <span class="info-icon">📅</span>
-        <div>
-          <div class="info-lbl">Your visit days</div>
-          <div class="info-val">Thu June 11</div>
-          <div class="info-val">Fri June 12</div>
-          <div class="info-val">Sat June 13</div>
-        </div>
       </div>
     </div>
 
