@@ -383,9 +383,36 @@ function addToAppleCal(date) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
+function addRangeToAppleCal() {
+  const ics = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Cat Sitter//EN',
+    'BEGIN:VEVENT',
+    'DTSTART;VALUE=DATE:20260611',
+    'DTEND;VALUE=DATE:20260614',
+    'SUMMARY:Cat Sitter Visit',
+    'DESCRIPTION:Look after Ruski\\, Evi & Kiara',
+    'END:VEVENT', 'END:VCALENDAR'
+  ].join('\r\n');
+  const a = Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(new Blob([ics], {type: 'text/calendar'})),
+    download: 'cat-sitter-jun11-13.ics'
+  });
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
 // ── Tasks ──────────────────────────────────────────────────────────────────
 function renderTasks() {
   const p = document.getElementById('panel-tasks');
+
+  p.insertAdjacentHTML('beforeend', `
+    <div class="card" style="text-align:center">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:10px">Add all visit days to your calendar</div>
+      <div class="cal-btns">
+        <a class="cal-btn cal-btn-google" href="https://calendar.google.com/calendar/render?action=TEMPLATE&text=Cat+Sitter+Visit&dates=20260611/20260614&details=Look+after+Ruski%2C+Evi+%26+Kiara" target="_blank" rel="noopener">📅 Google Calendar</a>
+        <button class="cal-btn cal-btn-apple" onclick="addRangeToAppleCal()">🍎 Apple Calendar</button>
+      </div>
+    </div>`);
 
   if (today === '2026-06-10') {
     p.insertAdjacentHTML('beforeend',
@@ -401,10 +428,6 @@ function renderTasks() {
       <div class="day-header">
         <span class="day-name">${label}</span>
         ${isToday ? '<span class="today-badge">TODAY</span>' : ''}
-      </div>
-      <div class="cal-btns">
-        <a class="cal-btn cal-btn-google" href="${gcalUrl(date)}" target="_blank" rel="noopener">📅 Google Calendar</a>
-        <button class="cal-btn cal-btn-apple" onclick="addToAppleCal('${date}')">🍎 Apple Calendar</button>
       </div>
       <div class="progress-row">
         <div class="prog-bar"><div class="prog-fill" id="fill-${date}"></div></div>
@@ -541,9 +564,10 @@ function renderInfo() {
     <div class="card">
       <div class="info-row">
         <span class="info-icon">📞</span>
-        <div><div class="info-lbl">Owners</div><div class="info-val">+47 93 26 69 96</div></div>
+        <div><div class="info-lbl">Owners</div><div class="info-val">+47 93 26 69 96 · +47 98 03 33 56</div></div>
       </div>
-      <a class="call-btn" href="tel:+4793266996">📞 &nbsp;Call the owners</a>
+      <a class="call-btn" href="tel:+4793266996">📞 &nbsp;+47 93 26 69 96</a>
+      <a class="call-btn" href="tel:+4798033356" style="margin-top:8px">📞 &nbsp;+47 98 03 33 56</a>
     </div>
 
     <div class="section-title">Trip dates</div>
@@ -582,7 +606,7 @@ function renderInfo() {
         <span class="info-icon">🫙</span>
         <div>
           <div class="info-lbl">Dry food</div>
-          <div class="info-val">Two glass jars on the kitchen wall</div>
+          <div class="info-val">Two glass jars on the kitchen counter</div>
         </div>
       </div>
       <img src="dry-food.jpg" alt="Dry food containers" class="door-photo">
@@ -649,27 +673,6 @@ function renderInfo() {
         </a>
       </div>
     </div>
-
-    <div class="section-title">Emergency</div>
-    <div class="card">
-      <div class="info-row">
-        <span class="info-icon">🏥</span>
-        <div>
-          <div class="info-lbl">Nearest animal hospital</div>
-          <div class="info-val">AniCura Dyresykehus Oslo</div>
-        </div>
-      </div>
-      <div style="padding: 0 16px 12px; display:flex; flex-direction:column; gap:10px;">
-        <a href="https://maps.app.goo.gl/aCrAUZywuhHzbcM68?g_st=ic" target="_blank" rel="noopener"
-           style="display:flex; align-items:center; gap:8px; background:#f0f7f0; border:1.5px solid #81c784; border-radius:10px; padding:12px; text-decoration:none; color:inherit; font-size:15px; font-weight:600;">
-          🗺️ Open in Maps
-        </a>
-        <a href="tel:+4721525300"
-           style="display:flex; align-items:center; gap:8px; background:#f0f7ff; border:1.5px solid #90caf9; border-radius:10px; padding:12px; text-decoration:none; color:inherit; font-size:15px; font-weight:600;">
-          📞 21 52 53 00
-        </a>
-      </div>
-    </div>
   `;
 }
 
@@ -698,14 +701,14 @@ function renderCoffee() {
         <span class="info-icon">📖</span>
         <div>
           <div class="info-lbl">Manual & beans</div>
-          <div class="info-val">Instruction manual and coffee beans are in the shelf above the machine</div>
+          <div class="info-val">Instruction manual and coffee beans are in the cupboard above the machine</div>
         </div>
       </div>
     </div>
     <div class="section-title">Quick start guide</div>
     <div class="card">
       <img src="coffee-guide.jpg" alt="SMEG quick start guide" class="door-photo" style="max-height:400px">
-      <p class="door-photo-caption">SMEG quick start guide — also in the shelf above</p>
+      <p class="door-photo-caption">SMEG quick start guide — also in the cupboard above</p>
     </div>
   `;
 }
