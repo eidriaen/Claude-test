@@ -354,7 +354,7 @@ const today = new Date().toISOString().slice(0, 10);
 const statusEl = document.getElementById('trip-status');
 if      (today < '2026-06-11') statusEl.textContent = 'Owners leave Jun 10 · Return Jun 14';
 else if (today > '2026-06-13') statusEl.textContent = 'Owners return Jun 14 — thank you! 🙏';
-else                           statusEl.textContent  = 'Jun 10–14 · Thank you for taking care of them! 🙏';
+else                           statusEl.textContent  = 'Thank you for taking care of them! 🙏';
 
 // ── Calendar ───────────────────────────────────────────────────────────────
 function dateStamp(date) { return date.replace(/-/g, ''); }
