@@ -337,9 +337,16 @@ const CATS = [
 ];
 
 // ── Storage ────────────────────────────────────────────────────────────────
+const DB   = 'https://catsitter-b7668-default-rtdb.europe-west1.firebasedatabase.app';
+const _fc  = {};
 const key  = (d, id) => `cs_${d}_${id}`;
-const get  = (d, id) => localStorage.getItem(key(d, id)) === '1';
-const set  = (d, id, v) => localStorage.setItem(key(d, id), v ? '1' : '0');
+const get  = (d, id) => !!_fc[key(d, id)];
+function set(d, id, v) {
+  _fc[key(d, id)] = v;
+  fetch(`${DB}/tasks/${key(d, id)}.json`, {
+    method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(v)
+  }).catch(() => {});
+}
 
 // ── Today ──────────────────────────────────────────────────────────────────
 const today = new Date().toISOString().slice(0, 10);
@@ -712,10 +719,33 @@ function switchTab(name, btn) {
   window.scrollTo(0, 0);
 }
 
-renderTasks();
-renderCats();
-renderInfo();
-renderCoffee();
+function pollDB() {
+  fetch(`${DB}/tasks.json`).then(r => r.json()).then(data => {
+    if (!data || typeof data !== 'object') return;
+    Object.entries(data).forEach(([k, v]) => {
+      if (!!_fc[k] !== !!v) {
+        _fc[k] = v;
+        const m = k.match(/^cs_(\d{4}-\d{2}-\d{2})_(.+)$/);
+        if (m) {
+          document.getElementById(`t-${m[1]}-${m[2]}`)?.classList.toggle('done', !!v);
+          refreshProgress(m[1]);
+        }
+      }
+    });
+  }).catch(() => {});
+}
+
+fetch(`${DB}/tasks.json`)
+  .then(r => r.json())
+  .then(data => { if (data && typeof data === 'object') Object.assign(_fc, data); })
+  .catch(() => {})
+  .finally(() => {
+    renderTasks();
+    renderCats();
+    renderInfo();
+    renderCoffee();
+    setInterval(pollDB, 10000);
+  });
 </script>
 </body>
 </html>
