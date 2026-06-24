@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Adrian Lervåg Skår — CV</title>
+  <title>Adrian Lervåg Skår</title>
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -12,31 +12,90 @@
       background: #08080f;
       color: #e2e8f0;
       font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-      padding: 72px 64px 100px;
+      padding: 64px 60px 100px;
     }
 
-    .header { margin-bottom: 60px; }
+    /* ── Header ── */
+    .header {
+      display: flex;
+      gap: 40px;
+      align-items: flex-start;
+      margin-bottom: 64px;
+    }
+    .photo {
+      width: 130px;
+      height: 130px;
+      border-radius: 50%;
+      object-fit: cover;
+      object-position: center top;
+      border: 1px solid rgba(255,255,255,0.08);
+      flex-shrink: 0;
+      filter: grayscale(20%);
+    }
+    .header-text { flex: 1; }
     .name {
-      font-size: 2.4rem;
+      font-size: 2.2rem;
       font-weight: 200;
       letter-spacing: 0.03em;
       color: #f8fafc;
+      line-height: 1;
+      margin-bottom: 5px;
     }
-    .headline {
-      margin-top: 7px;
+    .job-title {
       font-size: 0.78rem;
-      color: #2d3748;
-      letter-spacing: 0.05em;
+      color: #334155;
+      letter-spacing: 0.06em;
+      margin-bottom: 14px;
+    }
+    .bio {
+      font-size: 0.82rem;
+      color: #475569;
+      line-height: 1.65;
+      max-width: 680px;
+      margin-bottom: 24px;
     }
 
+    /* ── Certifications ── */
+    .certs { display: flex; gap: 14px; flex-wrap: wrap; }
+    .cert-badge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: transform 0.18s, opacity 0.18s;
+    }
+    .cert-badge:hover { transform: translateY(-2px); opacity: 0.85; }
+    .cert-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #94a3b8;
+      background: rgba(255,255,255,0.03);
+    }
+    .cert-icon svg { width: 22px; height: 22px; }
+    .cert-label {
+      font-size: 0.58rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #334155;
+      text-align: center;
+      max-width: 60px;
+    }
+
+    /* ── Controls ── */
     .controls {
       display: flex;
       align-items: center;
       gap: 6px;
-      margin-bottom: 60px;
+      margin-bottom: 52px;
     }
     .ctrl-label {
-      font-size: 0.63rem;
+      font-size: 0.62rem;
       text-transform: uppercase;
       letter-spacing: 0.15em;
       color: #1e293b;
@@ -48,26 +107,18 @@
       border: 1px solid rgba(255,255,255,0.07);
       background: transparent;
       color: #2d3748;
-      font-size: 0.76rem;
+      font-size: 0.75rem;
       cursor: pointer;
       transition: all 0.2s;
       font-family: inherit;
-      letter-spacing: 0.02em;
     }
-    .tog:hover { color: #64748b; border-color: rgba(255,255,255,0.14); }
-    .tog.active {
-      background: rgba(255,255,255,0.93);
-      border-color: transparent;
-      color: #0a0a14;
-      font-weight: 600;
-    }
+    .tog:hover { color: #64748b; }
+    .tog.active { background: rgba(255,255,255,0.92); border-color: transparent; color: #0a0a14; font-weight: 600; }
 
+    /* ── Timeline ── */
     .scroll-wrap { overflow-x: auto; padding-bottom: 8px; }
-
     .tl-container { min-width: 740px; }
-
-    .tl-section { margin-bottom: 48px; }
-
+    .tl-section { margin-bottom: 44px; }
     .sec-label {
       font-size: 0.6rem;
       text-transform: uppercase;
@@ -75,15 +126,8 @@
       color: #1e2a3a;
       margin-bottom: 12px;
     }
-
     .lanes { position: relative; }
-
-    .lane {
-      position: relative;
-      height: 44px;
-      margin-bottom: 4px;
-    }
-
+    .lane { position: relative; height: 42px; margin-bottom: 4px; }
     .lane-track {
       position: absolute;
       inset: 0;
@@ -91,24 +135,21 @@
       background: rgba(255,255,255,0.018);
       border: 1px solid rgba(255,255,255,0.04);
     }
-
     .seg {
       position: absolute;
-      top: 3px;
-      bottom: 3px;
+      top: 3px; bottom: 3px;
       border-radius: 5px;
       display: flex;
       align-items: center;
-      padding: 0 11px;
+      padding: 0 10px;
       overflow: hidden;
       cursor: default;
       transition: filter 0.15s, transform 0.15s;
       min-width: 3px;
     }
-    .seg:hover { filter: brightness(1.3); transform: scaleY(1.05); z-index: 10; }
-
+    .seg:hover { filter: brightness(1.3); transform: scaleY(1.06); z-index: 10; }
     .seg-label {
-      font-size: 0.7rem;
+      font-size: 0.69rem;
       font-weight: 500;
       color: rgba(255,255,255,0.82);
       white-space: nowrap;
@@ -116,11 +157,9 @@
       text-overflow: ellipsis;
       user-select: none;
     }
-
     .now-line {
       position: absolute;
-      top: 0;
-      bottom: 0;
+      top: 0; bottom: 0;
       width: 1px;
       background: rgba(255,255,255,0.1);
       pointer-events: none;
@@ -131,18 +170,13 @@
       bottom: calc(100% + 4px);
       left: 50%;
       transform: translateX(-50%);
-      font-size: 0.54rem;
-      color: rgba(255,255,255,0.18);
+      font-size: 0.53rem;
+      color: rgba(255,255,255,0.17);
       letter-spacing: 0.12em;
       text-transform: uppercase;
       white-space: nowrap;
     }
-
-    .axis {
-      position: relative;
-      height: 20px;
-      margin-top: 5px;
-    }
+    .axis { position: relative; height: 20px; margin-top: 5px; }
     .tick {
       position: absolute;
       font-size: 0.6rem;
@@ -151,12 +185,13 @@
       user-select: none;
     }
 
+    /* ── Tooltip ── */
     #tip {
       position: fixed;
       background: #0c0c1a;
       border: 1px solid rgba(255,255,255,0.08);
       border-radius: 10px;
-      padding: 13px 17px;
+      padding: 12px 16px;
       font-size: 0.75rem;
       pointer-events: none;
       opacity: 0;
@@ -165,21 +200,277 @@
       max-width: 260px;
     }
     #tip.show { opacity: 1; }
-    .tip-co   { font-weight: 600; color: #f1f5f9; margin-bottom: 4px; font-size: 0.82rem; }
-    .tip-role { color: #94a3b8; margin-bottom: 7px; line-height: 1.4; }
+    .tip-co   { font-weight: 600; color: #f1f5f9; margin-bottom: 3px; font-size: 0.8rem; }
+    .tip-role { color: #94a3b8; margin-bottom: 6px; line-height: 1.4; }
     .tip-dates{ color: #2d3748; font-size: 0.67rem; }
+    .tip-tag  { display: inline-block; font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.1em; padding: 2px 7px; border-radius: 3px; margin-bottom: 6px; }
+    .tip-tag.edu  { background: rgba(99,102,241,0.2); color: #818cf8; }
+    .tip-tag.work { background: rgba(16,185,129,0.15); color: #34d399; }
 
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: #0e0e1c;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 32px;
+      max-width: 400px;
+      width: 90%;
+      position: relative;
+    }
+    .modal-icon { margin-bottom: 16px; color: #94a3b8; }
+    .modal-icon svg { width: 36px; height: 36px; }
+    .modal-name { font-size: 1.1rem; font-weight: 600; color: #f1f5f9; margin-bottom: 4px; }
+    .modal-issuer { font-size: 0.75rem; color: #64748b; margin-bottom: 16px; }
+    .modal-desc { font-size: 0.82rem; color: #94a3b8; line-height: 1.65; }
+    .modal-close {
+      position: absolute;
+      top: 16px; right: 16px;
+      background: none;
+      border: none;
+      color: #334155;
+      font-size: 1.3rem;
+      cursor: pointer;
+      line-height: 1;
+      transition: color 0.15s;
+    }
+    .modal-close:hover { color: #94a3b8; }
+
+    /* ── Skills ── */
+    .skills-section { margin-bottom: 60px; }
+    .skills-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .skill-card {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 10px;
+      padding: 18px 16px 16px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .skill-card:hover {
+      background: rgba(255,255,255,0.04);
+      border-color: rgba(255,255,255,0.1);
+    }
+    .skill-icon {
+      color: #475569;
+      margin-bottom: 12px;
+    }
+    .skill-icon svg { width: 20px; height: 20px; }
+    .skill-name {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #94a3b8;
+      margin-bottom: 8px;
+      letter-spacing: 0.01em;
+    }
+    .skill-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .skill-tag {
+      font-size: 0.58rem;
+      color: #334155;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 3px;
+      padding: 2px 7px;
+      letter-spacing: 0.04em;
+    }
+
+    @media (max-width: 900px) { .skills-grid { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 768px) {
-      body { padding: 36px 20px 80px; }
+      body { padding: 32px 20px 80px; }
+      .header { flex-direction: column; gap: 24px; }
       .name { font-size: 1.7rem; }
+      .skills-grid { grid-template-columns: repeat(2, 1fr); }
     }
   </style>
 </head>
 <body>
 
+<!-- ── Header ── -->
 <div class="header">
-  <div class="name">Adrian Lervåg Skår</div>
-  <div class="headline">Head of Interactive &nbsp;·&nbsp; Technologist &nbsp;·&nbsp; 12+ yrs XR / Interactive Design / VFX</div>
+  <img class="photo" src="data:image/jpeg;base64,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 lW2jYc1OWBQMO449adQ A514KkuCORg0AevWk8dzaxzIcrIoYfQ1MaqaTL52jWsgGCUGR9atZoASiiigAooooAuCiikzQAtFFFABilpKWgAooooAKWkpaACiiigApaKKACiijNABmkJpM1Xvr+00y1a6v7qG0gXkyTOEX8zQBYzXP+LPGmjeDdP+06ncfvGH7q3j5ll+g9Pc8V574y+OdpZxva+GovtEx4+1zLhF91U8t9TgexrwrV9YvNYv5b2/uZLm4lOXkkbJP/ANb2oA6bx78S9R8cXqB0Nnp8PEdqkhYE5+83q36DtXI7sjrVZDwT71KDQBXlPk3Kyjp0P0q4H3HIwQahlQOhqrBK0T7DyBQB1fhnxPdeGb3coaeykOZYM/8Ajy+h/nXuGk67b6jp0V/YTia3fn6H0I7H2r51jYOPrXeeGfsHgzQIfEmrapcRrqW5bbTrVQxuFU4LvngAHoaAPatFAB1JpM0YoAb3pM0ZozQAtFJmjNAC0UmaM0ALRSZooAWikzRQBcoopaACiiigApaKKACiijNABmkJpM1Xvr+00y1a6v7qG0gXkyTOEX8zQBYzXP+LPGmjeDdP+06ncfvGH7q3j5ll+g9Pc8V874y+OdpZxva+GovtEx4+1zLhF91U8t9TgexrwrV9YvNYv5b2/uZLm4lOXkkbJP/ANb2oA9A8S/GHVNSme20IHTbYHHmfxuPr/D+Ga4OfX9bSYvFqE8h67mck/Wsgz7nIzzjJpFcJkZx+FAGpc+KdaN0lxc6hPN5R3xqzfKD/unrXZ6T8Q7ZYoV1e0t5/LHMltC8Tucd8ZGfwFec5Z2LE5LdT7mvRfBHgy2kX7TqEYcN0ViAfx9aAOgbxpp88uyyjf+xbZD9hvMfNH1+XPZX9enOKiuPFFzbL9sFxvjPA89TuB9mB5ryOaF9P1RrYFvs+8OqnkBT/SvUb+7h06CGRZ42SZBJGyk88Z/nxQB5xJqOs3fiNbzSJjHFIfNuYkBbdnvtPpXp2heIINY04XV9bTafJbgBYZ0w7n/AGSMg/Q4/CvCrq3vFvpblbeR3lcksqHJqbTtRli1BxPFcbVbbKuD8w9QO1AHp3xT8KweMdJGpWIH2tV3DB4f2P8AjX0X4T8Rm90q3YvuV12lfQ1458N/F1jJp95E+/y5bVNmU6tgAgn3Fek+EpElsJGQ5y5BH0oA6g0h60daM0AJSUtJQAUlFLQA2ilooASilooAaaBRRQBbooopaACiiigApaKKAGuiujIwyGGCD3rwnxL4G1TRbd7m3t5J7McrOi8j69xXvFRSxJNG8cqB0cEMrDIIPYigD5Dt7aJm3TZgABywGQfaraaHp1xLiDWrFunDsFP5Hmt7xd4PvvCmpSW88RlgBJguAflZfT2PtWBb3EkB3RAIf9kAUAMv/AA9dpFK9neWuqmP7rQSAhh6AEg/hXJTW0l1fGB5bZJAxV13qSD6cGvTxDa3KqEaS2IHylccH3yOteVeIYJbDxEf3bG3cgkHoe/6UAWZbnULS3K3cFpGikBiZVDAf7OcE/SmsrPDblrRssMgAj+VO0ye11C4SOExyB+ARtOfSvRtJ8OnT9JNlNG9zfz/AOrWM9z0Xj0Hn69qAPGp9PaK9jRIhKzupKAj5T0/L19q9A8D6RNrPjXTI7ZkaOymFzJtYZCgnj8SK0/EHgaW10q7ESTBLm4JdHl3gBl5VCD0HPfmuA8P+JLnwvr1hqdou+S1kDbc4DKQVY fiD/2oA+vB7mlHesTwr4hsv EWl293ZyB45QcgnlT0I/A5rboA0BSUnFLQAoooxRQAtFFFABmjNGaKANWijNFABiilxRQAmKMU7FGKAG4oxTsUYoAbikxT8UYoAZijFOxSEUAMxSEU/FJQAzFIRTiKQ0AMIppFSGmkUAMIppFSEU0igBhFNIqQimmgCNQTjJqbZjik28GpcYFAEJXFIVJHWpT0ppFADNuRzTccVIRzTcUAMxRiiigChqWh6Xq8PlahaszdmHDD8RWRHoGr6JGRps0d9bA5FvcHawHoDXUUUAcrFrWqq5R7Fxn+JPlx+maz9T8ZWmkiMajpMsV02UjVJgVkPt3ArvioIwRkHqDXiPxnvmsbrQ7FGk8uOSSeQDpkEAZ/WgD0vT9Uj1GFpgjoR0x6VLc3kcMbSu6qqDJJNeN+C9bvotNJgO8cFTxgiv SretQ23iGBbctFhSWkwCCAOoGfSgCRk1HXpmuNQk3HORCMgL7dOa6TT9NS1h5UFj1rm/C9oHijWBixCgMxOTkd67GJCiAYoA5bXdKjkjZhD8+M5p/haVbm3ks5OWiYon0rf1KHMbnjBFZ9hAsEz3CKBt5bHc0AXG5PFNOTSscuTmmFulAEJ60+P5lKnoeaZjOaeOMEdqAJgaKYDgjB604UAKDRS44pcUAIKDRS4oAOKKWigBKKWkoAKKKKAMHVvBHhjXGLajolnM5/5aeSA/8A30MGs3/hVHgPds/4R+3246ebL/8AF12NFAHMWHw38H6bJvttAtA3rJH5n/oWa6OKCKCJYoY0jjUYVEUAAfQU+igAopKWgAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKAP/2Q==" alt="Adrian Lervåg Skår">
+  <div class="header-text">
+    <div class="name">Adrian Lervåg Skår</div>
+    <div class="job-title">Head of Interactive &nbsp;·&nbsp; NPG &nbsp;·&nbsp; Oslo, Norway</div>
+    <div class="bio">Multidisciplinary technologist with 12+ years of experience in XR, VFX, interactive design, app development, and digital product leadership. Led complex, high-impact projects for clients including Netflix, the UN, TV 2, OBOS, Baker Hughes, Aker Solutions, and Kongsberg. Known as a structured, empathetic leader with strong delivery focus, deep technical insight, and cross-functional coordination skills.</div>
+    <div class="certs">
+      <div class="cert-badge" onclick="openCert('prince2')">
+        <div class="cert-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="8" y1="13" x2="16" y2="13"/>
+            <line x1="8" y1="17" x2="13" y2="17"/>
+          </svg>
+        </div>
+        <span class="cert-label">PRINCE2</span>
+      </div>
+      <div class="cert-badge" onclick="openCert('cspo')">
+        <div class="cert-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"/>
+            <polyline points="1 20 1 14 7 14"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+        </div>
+        <span class="cert-label">CSPO</span>
+      </div>
+      <div class="cert-badge" onclick="openCert('unreal')">
+        <div class="cert-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/>
+            <text x="12" y="15.5" text-anchor="middle" font-size="7" font-weight="700" fill="currentColor" stroke="none" font-family="system-ui">UE</text>
+          </svg>
+        </div>
+        <span class="cert-label">Unreal</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Skills ── -->
+<div class="skills-section">
+  <div class="sec-label" style="margin-bottom:14px;">Core Competencies</div>
+  <div class="skills-grid">
+
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      </div>
+      <div class="skill-name">Leadership</div>
+      <div class="skill-tags">
+        <span class="skill-tag">Team Management</span>
+        <span class="skill-tag">Program Mgmt</span>
+        <span class="skill-tag">Agile / PRINCE2</span>
+        <span class="skill-tag">Operations</span>
+      </div>
+    </div>
+
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/>
+          <text x="12" y="15" text-anchor="middle" font-size="5.5" font-weight="700" fill="currentColor" stroke="none" font-family="system-ui">UE</text>
+        </svg>
+      </div>
+      <div class="skill-name">Unreal Guru</div>
+      <div class="skill-tags">
+        <span class="skill-tag">Unreal Engine</span>
+        <span class="skill-tag">Blueprint</span>
+        <span class="skill-tag">Level Design</span>
+        <span class="skill-tag">Authorized Instr.</span>
+      </div>
+    </div>
+
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+        </svg>
+      </div>
+      <div class="skill-name">Technologist</div>
+      <div class="skill-tags">
+        <span class="skill-tag">AI / Digitization</span>
+        <span class="skill-tag">iOS / Android</span>
+        <span class="skill-tag">Interactive Design</span>
+        <span class="skill-tag">Real-time</span>
+      </div>
+    </div>
+
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+      </div>
+      <div class="skill-name">Game Designer</div>
+      <div class="skill-tags">
+        <span class="skill-tag">Game Design</span>
+        <span class="skill-tag">Pre-production</span>
+        <span class="skill-tag">Gamification</span>
+        <span class="skill-tag">Game Art</span>
+      </div>
+    </div>
+
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+        </svg>
+      </div>
+      <div class="skill-name">Environment Artist</div>
+      <div class="skill-tags">
+        <span class="skill-tag">3D Modeling</span>
+        <span class="skill-tag">UV Mapping</span>
+        <span class="skill-tag">3D Visualization</span>
+        <span class="skill-tag">3D Studio Max</span>
+      </div>
+    </div>
+
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>
+        </svg>
+      </div>
+      <div class="skill-name">VR / XR Developer</div>
+      <div class="skill-tags">
+        <span class="skill-tag">Virtual Reality</span>
+        <span class="skill-tag">Augmented Reality</span>
+        <span class="skill-tag">Mixed Reality</span>
+        <span class="skill-tag">Interactive Story</span>
+      </div>
+    </div>
+
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
+        </svg>
+      </div>
+      <div class="skill-name">Educator</div>
+      <div class="skill-tags">
+        <span class="skill-tag">Higher Education</span>
+        <span class="skill-tag">Lecturing</span>
+        <span class="skill-tag">Course Dev</span>
+        <span class="skill-tag">Tutoring</span>
+      </div>
+    </div>
+
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+        </svg>
+      </div>
+      <div class="skill-name">Business Developer</div>
+      <div class="skill-tags">
+        <span class="skill-tag">Key Accounts</span>
+        <span class="skill-tag">Contract Mgmt</span>
+        <span class="skill-tag">CRM</span>
+        <span class="skill-tag">Negotiation</span>
+      </div>
+    </div>
+
+  </div>
 </div>
 
 <div class="controls">
@@ -192,10 +483,21 @@
   <div class="tl-container" id="tl"></div>
 </div>
 
+<!-- Cert Modal -->
+<div class="modal-overlay" id="modal" onclick="closeCert()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeCert()">✕</button>
+    <div class="modal-icon" id="modal-icon"></div>
+    <div class="modal-name" id="modal-name"></div>
+    <div class="modal-issuer" id="modal-issuer"></div>
+    <div class="modal-desc" id="modal-desc"></div>
+  </div>
+</div>
+
 <div id="tip"></div>
 
 <script>
-const T_START = new Date(2000, 0, 1).getTime();
+const T_START = new Date(2008, 0, 1).getTime();
 const T_END   = new Date(2027, 0, 1).getTime();
 const T_NOW   = new Date(2026, 5, 24).getTime();
 const T_SPAN  = T_END - T_START;
@@ -203,106 +505,95 @@ const T_SPAN  = T_END - T_START;
 const d   = (y, m=1, day=1) => new Date(y, m-1, day).getTime();
 const pct = t => ((t - T_START) / T_SPAN * 100) + '%';
 
-const EDU_COLORS = [
-  '#3d4a5e', '#4e5f82', '#4a4fc4', '#7236b8',
-  '#2660c8', '#0882ae'
-];
-
-const WORK_COLORS = {
-  'Freelance':           '#253344',
-  '3 Computer Graphics': '#b85a1a',
-  'Gridshapes':          '#0a7a70',
-  'Noroff Oslo':         '#5456aa',
-  'Impact Reality':      '#7a32aa',
-  'Xvision':             '#b82238',
-  'Gimpville':           '#9e6a10',
-  'Shortcut Norway':     '#097a52',
-  'NPG':                 '#1278a0',
+const EDU_COLORS = {
+  'Noroff Bergen':        '#3d3fa8',
+  'Noroff Kristiansand':  '#6130a0',
+  'University of Teesside': '#1e56b0',
+  'Teesside University':  '#0670a0',
 };
 
-const education = [
-  { idx:0, type:'edu', institution:'Fiskarfagsskolen i Austevoll', field:'High School',                         start:d(2000,8), end:d(2001,6)  },
-  { idx:1, type:'edu', institution:'Bergens Handelsgym',           field:'High School, General Studies',        start:d(2001,8), end:d(2003,6)  },
-  { idx:2, type:'edu', institution:'Noroff Bergen',                field:'Vocational · 3D Design & Animation',  start:d(2008,8), end:d(2009,6)  },
-  { idx:3, type:'edu', institution:'Noroff Kristiansand',          field:'Vocational · Games Design',           start:d(2009,8), end:d(2010,6)  },
-  { idx:4, type:'edu', institution:'University of Teesside',       field:'BA · Creative Digital Media',         start:d(2010,8), end:d(2011,6)  },
-  { idx:5, type:'edu', institution:'Teesside University',          field:'MA · Environment Design (Games Art)', start:d(2011,8), end:d(2012,6)  },
+const WORK_COLORS = {
+  '3 Computer Graphics': '#9e4a12',
+  'Gridshapes':          '#0a7068',
+  'Noroff Oslo':         '#484ab0',
+  'Impact Reality':      '#6a28a8',
+  'Xvision':             '#a01e32',
+  'Gimpville':           '#8e5e0e',
+  'Shortcut Norway':     '#0a7848',
+  'NPG':                 '#0e6890',
+};
+
+const FREELANCE_COLOR = '#253855';
+
+const combined = [
+  { idx:0, type:'edu', institution:'Noroff Bergen',          field:'Vocational · 3D Design & Animation',  start:d(2008,8), end:d(2009,6)  },
+  { idx:1, type:'edu', institution:'Noroff Kristiansand',    field:'Vocational · Games Design',           start:d(2009,8), end:d(2010,6)  },
+  { idx:2, type:'edu', institution:'University of Teesside', field:'BA · Creative Digital Media',         start:d(2010,8), end:d(2011,6)  },
+  { idx:3, type:'edu', institution:'Teesside University',    field:'MA · Environment Design (Games Art)', start:d(2011,8), end:d(2012,6)  },
+  { idx:4, type:'work', company:'3 Computer Graphics', role:'Designer / Partner',          start:d(2012,3),  end:d(2013,3)  },
+  { idx:5, type:'work', company:'Gridshapes',           role:'Project Manager / Designer',  start:d(2013,3),  end:d(2016,5)  },
+  { idx:6, type:'work', company:'Noroff Oslo',          role:'3D Games Design Teacher',     start:d(2013,9),  end:d(2018,9)  },
+  { idx:7, type:'work', company:'Impact Reality',       role:'VR/AR Developer / 3D Artist', start:d(2017,10), end:d(2018,9)  },
+  { idx:8, type:'work', company:'Xvision',              role:'Lead XR Developer / Tech PM', start:d(2018,9),  end:d(2019,9)  },
+  { idx:9, type:'work', company:'Xvision',              role:'Project Manager / Interim CEO',start:d(2019,9), end:d(2022,5)  },
+  { idx:10, type:'work', company:'Gimpville',           role:'PM / VFX Coordinator',        start:d(2022,5),  end:d(2024,4)  },
+  { idx:11, type:'work', company:'Shortcut Norway',     role:'Senior Project Manager',      start:d(2024,5),  end:d(2026,3)  },
+  { idx:12, type:'work', company:'NPG',                 role:'Head of Interactive',         start:d(2026,3),  end:null       },
 ];
 
-const work = [
-  { idx:0, type:'work', company:'Freelance',           role:'VR Developer / 3D Real-time Artist', start:d(2008,12), end:d(2019,1)  },
-  { idx:1, type:'work', company:'3 Computer Graphics', role:'Designer / Partner',                  start:d(2012,3),  end:d(2013,3)  },
-  { idx:2, type:'work', company:'Gridshapes',           role:'Project Manager / Designer',          start:d(2013,3),  end:d(2016,5)  },
-  { idx:3, type:'work', company:'Noroff Oslo',          role:'3D Games Design Teacher',             start:d(2013,9),  end:d(2018,9)  },
-  { idx:4, type:'work', company:'Impact Reality',       role:'VR/AR Developer / 3D Artist',         start:d(2017,10), end:d(2018,9)  },
-  { idx:5, type:'work', company:'Xvision',              role:'Lead XR Developer / Tech PM',         start:d(2018,9),  end:d(2019,9)  },
-  { idx:6, type:'work', company:'Xvision',              role:'Project Manager / Interim CEO',       start:d(2019,9),  end:d(2022,5)  },
-  { idx:7, type:'work', company:'Gimpville',            role:'PM / VFX Coordinator',               start:d(2022,5),  end:d(2024,4)  },
-  { idx:8, type:'work', company:'Shortcut Norway',      role:'Senior Project Manager',             start:d(2024,5),  end:d(2026,3)  },
-  { idx:9, type:'work', company:'NPG',                  role:'Head of Interactive',                start:d(2026,3),  end:null       },
+const freelance = [
+  { idx:0, type:'work', company:'Freelance', role:'VR Developer / 3D Real-time Artist', start:d(2008,12), end:d(2019,1) },
 ];
 
 function assignLanes(items) {
-  const ends = [];
-  const out  = [];
+  const ends = [], out = [];
   for (const item of items) {
     const iend = item.end ?? T_NOW;
     let placed = false;
     for (let li = 0; li < ends.length; li++) {
-      if (item.start >= ends[li]) {
-        ends[li] = iend;
-        out.push({ ...item, lane: li });
-        placed = true;
-        break;
-      }
+      if (item.start >= ends[li]) { ends[li] = iend; out.push({...item, lane:li}); placed=true; break; }
     }
-    if (!placed) {
-      ends.push(iend);
-      out.push({ ...item, lane: ends.length - 1 });
-    }
+    if (!placed) { ends.push(iend); out.push({...item, lane: ends.length-1}); }
   }
   return { items: out, count: ends.length };
 }
 
-const fmtDate = t =>
-  t === null
-    ? 'Present'
-    : new Date(t).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+const fmtDate = t => t===null ? 'Present' : new Date(t).toLocaleDateString('en-GB',{month:'short',year:'numeric'});
 
-const colorOf = item =>
-  item.type === 'edu' ? EDU_COLORS[item.idx] : (WORK_COLORS[item.company] || '#555');
+function colorOf(item) {
+  if (item.type === 'edu') return EDU_COLORS[item.institution] || '#3d3fa8';
+  if (item.company === 'Freelance') return FREELANCE_COLOR;
+  return WORK_COLORS[item.company] || '#555';
+}
 
-const labelOf = (item, mode) =>
-  item.type === 'edu'
-    ? (mode === 'role' ? item.field       : item.institution)
-    : (mode === 'role' ? item.role        : item.company);
+function labelOf(item, mode) {
+  if (item.type === 'edu') return mode==='role' ? item.field : item.institution;
+  return mode==='role' ? item.role : item.company;
+}
 
-const tipHTML = item => {
-  const name = item.type === 'edu' ? item.institution : item.company;
-  const sub  = item.type === 'edu' ? item.field       : item.role;
-  return `<div class="tip-co">${name}</div>
-          <div class="tip-role">${sub}</div>
-          <div class="tip-dates">${fmtDate(item.start)} – ${fmtDate(item.end)}</div>`;
-};
+function tipHTML(item) {
+  const name = item.type==='edu' ? item.institution : item.company;
+  const sub  = item.type==='edu' ? item.field       : item.role;
+  const tag  = item.type==='edu' ? '<span class="tip-tag edu">Education</span>' : '<span class="tip-tag work">Work</span>';
+  return `${tag}<div class="tip-co">${name}</div><div class="tip-role">${sub}</div><div class="tip-dates">${fmtDate(item.start)} – ${fmtDate(item.end)}</div>`;
+}
 
 let mode = 'role';
 const tip = document.getElementById('tip');
 
 function buildSection(title, items, container) {
   const { items: assigned, count } = assignLanes(items);
-
   const section = document.createElement('div');
   section.className = 'tl-section';
 
-  const secLabel = document.createElement('div');
-  secLabel.className = 'sec-label';
-  secLabel.textContent = title;
-  section.appendChild(secLabel);
+  const lbl = document.createElement('div');
+  lbl.className = 'sec-label';
+  lbl.textContent = title;
+  section.appendChild(lbl);
 
   const lanes = document.createElement('div');
   lanes.className = 'lanes';
 
-  // "now" marker
   const nowLine = document.createElement('div');
   nowLine.className = 'now-line';
   nowLine.style.left = pct(T_NOW);
@@ -315,7 +606,6 @@ function buildSection(title, items, container) {
   for (let li = 0; li < count; li++) {
     const lane = document.createElement('div');
     lane.className = 'lane';
-
     const track = document.createElement('div');
     track.className = 'lane-track';
     lane.appendChild(track);
@@ -324,7 +614,7 @@ function buildSection(title, items, container) {
       if (item.lane !== li) continue;
       const iend  = item.end ?? T_NOW;
       const left  = (item.start - T_START) / T_SPAN * 100;
-      const width = (iend - item.start)    / T_SPAN * 100;
+      const width = (iend - item.start) / T_SPAN * 100;
 
       const seg = document.createElement('div');
       seg.className = 'seg';
@@ -332,57 +622,91 @@ function buildSection(title, items, container) {
       seg.style.width      = width + '%';
       seg.style.background = colorOf(item);
 
-      const lbl = document.createElement('span');
-      lbl.className        = 'seg-label';
-      lbl.dataset.type     = item.type;
-      lbl.dataset.idx      = item.idx;
-      lbl.textContent      = labelOf(item, mode);
-      seg.appendChild(lbl);
+      const segLbl = document.createElement('span');
+      segLbl.className    = 'seg-label';
+      segLbl.dataset.type = item.type;
+      segLbl.dataset.idx  = item.idx;
+      segLbl.dataset.src  = title === 'Education & Career' ? 'combined' : 'freelance';
+      segLbl.textContent  = labelOf(item, mode);
+      seg.appendChild(segLbl);
 
       seg.addEventListener('mouseenter', () => { tip.innerHTML = tipHTML(item); tip.classList.add('show'); });
-      seg.addEventListener('mousemove',  e  => { tip.style.left = (e.clientX + 18) + 'px'; tip.style.top = (e.clientY - 10) + 'px'; });
+      seg.addEventListener('mousemove',  e  => { tip.style.left=(e.clientX+18)+'px'; tip.style.top=(e.clientY-10)+'px'; });
       seg.addEventListener('mouseleave', () => tip.classList.remove('show'));
 
       lane.appendChild(seg);
     }
-
     lanes.appendChild(lane);
   }
-
   section.appendChild(lanes);
 
-  // Year axis
   const axis = document.createElement('div');
   axis.className = 'axis';
-  for (let y = 2000; y <= 2027; y += 2) {
+  for (let y = 2008; y <= 2027; y += 2) {
     const tick = document.createElement('div');
     tick.className = 'tick';
-    tick.style.left = pct(new Date(y, 0, 1).getTime());
+    tick.style.left = pct(new Date(y,0,1).getTime());
     tick.textContent = y;
     axis.appendChild(tick);
   }
   section.appendChild(axis);
-
   container.appendChild(section);
 }
 
 function render() {
   const tl = document.getElementById('tl');
   tl.innerHTML = '';
-  buildSection('Education', education, tl);
-  buildSection('Work Experience', work, tl);
+  buildSection('Education & Career', combined, tl);
+  buildSection('Freelance', freelance, tl);
 }
 
 function setMode(m) {
   mode = m;
-  document.getElementById('btn-role').classList.toggle('active', m === 'role');
-  document.getElementById('btn-company').classList.toggle('active', m === 'company');
+  document.getElementById('btn-role').classList.toggle('active', m==='role');
+  document.getElementById('btn-company').classList.toggle('active', m==='company');
   document.querySelectorAll('.seg-label').forEach(lbl => {
-    const src  = lbl.dataset.type === 'edu' ? education : work;
+    const src  = lbl.dataset.src === 'combined' ? combined : freelance;
     const item = src[+lbl.dataset.idx];
-    lbl.textContent = labelOf(item, m);
+    if (item) lbl.textContent = labelOf(item, m);
   });
 }
+
+/* ── Certifications ── */
+const CERTS = {
+  prince2: {
+    name: 'PRINCE2® Foundation Certification',
+    issuer: 'Glasspaper',
+    desc: 'PRINCE2 (Projects IN Controlled Environments) is a globally recognised structured project management methodology. The Foundation certification validates knowledge of the method, its principles, themes, and processes.',
+    icon: `<svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>`,
+  },
+  cspo: {
+    name: 'Certified Scrum Product Owner (CSPO)',
+    issuer: 'Glasspaper / Scrum Alliance',
+    desc: 'The CSPO certification demonstrates mastery of the Product Owner role in the Scrum framework — including managing product backlogs, defining vision, engaging stakeholders, and maximising product value through agile delivery.',
+    icon: `<svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>`,
+  },
+  unreal: {
+    name: 'Unreal Authorized Instructor',
+    issuer: 'Epic Games',
+    desc: 'Certified by Epic Games to deliver official Unreal Engine training — one of a select group of instructors worldwide authorised to teach the engine used across games, film, architecture, and XR.',
+    icon: `<svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/><text x="12" y="15.5" text-anchor="middle" font-size="6.5" font-weight="700" fill="currentColor" stroke="none" font-family="system-ui,sans-serif">UE</text></svg>`,
+  },
+};
+
+function openCert(key) {
+  const c = CERTS[key];
+  document.getElementById('modal-icon').innerHTML = c.icon;
+  document.getElementById('modal-name').textContent = c.name;
+  document.getElementById('modal-issuer').textContent = c.issuer;
+  document.getElementById('modal-desc').textContent = c.desc;
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeCert() {
+  document.getElementById('modal').classList.remove('open');
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCert(); });
 
 render();
 </script>
