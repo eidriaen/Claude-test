@@ -3,19 +3,388 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>New Page</title>
+  <title>Adrian Lervåg Skår — CV</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       min-height: 100vh;
-      font-family: system-ui, sans-serif;
-      background: #ffffff;
-      color: #111111;
+      background: #08080f;
+      color: #e2e8f0;
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      padding: 72px 64px 100px;
+    }
+
+    .header { margin-bottom: 60px; }
+    .name {
+      font-size: 2.4rem;
+      font-weight: 200;
+      letter-spacing: 0.03em;
+      color: #f8fafc;
+    }
+    .headline {
+      margin-top: 7px;
+      font-size: 0.78rem;
+      color: #2d3748;
+      letter-spacing: 0.05em;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 60px;
+    }
+    .ctrl-label {
+      font-size: 0.63rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: #1e293b;
+      margin-right: 10px;
+    }
+    .tog {
+      padding: 6px 22px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.07);
+      background: transparent;
+      color: #2d3748;
+      font-size: 0.76rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+      letter-spacing: 0.02em;
+    }
+    .tog:hover { color: #64748b; border-color: rgba(255,255,255,0.14); }
+    .tog.active {
+      background: rgba(255,255,255,0.93);
+      border-color: transparent;
+      color: #0a0a14;
+      font-weight: 600;
+    }
+
+    .scroll-wrap { overflow-x: auto; padding-bottom: 8px; }
+
+    .tl-container { min-width: 740px; }
+
+    .tl-section { margin-bottom: 48px; }
+
+    .sec-label {
+      font-size: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: #1e2a3a;
+      margin-bottom: 12px;
+    }
+
+    .lanes { position: relative; }
+
+    .lane {
+      position: relative;
+      height: 44px;
+      margin-bottom: 4px;
+    }
+
+    .lane-track {
+      position: absolute;
+      inset: 0;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.018);
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+
+    .seg {
+      position: absolute;
+      top: 3px;
+      bottom: 3px;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      padding: 0 11px;
+      overflow: hidden;
+      cursor: default;
+      transition: filter 0.15s, transform 0.15s;
+      min-width: 3px;
+    }
+    .seg:hover { filter: brightness(1.3); transform: scaleY(1.05); z-index: 10; }
+
+    .seg-label {
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: rgba(255,255,255,0.82);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      user-select: none;
+    }
+
+    .now-line {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: rgba(255,255,255,0.1);
+      pointer-events: none;
+      z-index: 5;
+    }
+    .now-lbl {
+      position: absolute;
+      bottom: calc(100% + 4px);
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.54rem;
+      color: rgba(255,255,255,0.18);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .axis {
+      position: relative;
+      height: 20px;
+      margin-top: 5px;
+    }
+    .tick {
+      position: absolute;
+      font-size: 0.6rem;
+      color: #151e2e;
+      transform: translateX(-50%);
+      user-select: none;
+    }
+
+    #tip {
+      position: fixed;
+      background: #0c0c1a;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 13px 17px;
+      font-size: 0.75rem;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.1s;
+      z-index: 9999;
+      max-width: 260px;
+    }
+    #tip.show { opacity: 1; }
+    .tip-co   { font-weight: 600; color: #f1f5f9; margin-bottom: 4px; font-size: 0.82rem; }
+    .tip-role { color: #94a3b8; margin-bottom: 7px; line-height: 1.4; }
+    .tip-dates{ color: #2d3748; font-size: 0.67rem; }
+
+    @media (max-width: 768px) {
+      body { padding: 36px 20px 80px; }
+      .name { font-size: 1.7rem; }
     }
   </style>
 </head>
 <body>
 
+<div class="header">
+  <div class="name">Adrian Lervåg Skår</div>
+  <div class="headline">Head of Interactive &nbsp;·&nbsp; Technologist &nbsp;·&nbsp; 12+ yrs XR / Interactive Design / VFX</div>
+</div>
+
+<div class="controls">
+  <span class="ctrl-label">Label</span>
+  <button class="tog active" id="btn-role"    onclick="setMode('role')">Role</button>
+  <button class="tog"        id="btn-company" onclick="setMode('company')">Company</button>
+</div>
+
+<div class="scroll-wrap">
+  <div class="tl-container" id="tl"></div>
+</div>
+
+<div id="tip"></div>
+
+<script>
+const T_START = new Date(2000, 0, 1).getTime();
+const T_END   = new Date(2027, 0, 1).getTime();
+const T_NOW   = new Date(2026, 5, 24).getTime();
+const T_SPAN  = T_END - T_START;
+
+const d   = (y, m=1, day=1) => new Date(y, m-1, day).getTime();
+const pct = t => ((t - T_START) / T_SPAN * 100) + '%';
+
+const EDU_COLORS = [
+  '#3d4a5e', '#4e5f82', '#4a4fc4', '#7236b8',
+  '#2660c8', '#0882ae'
+];
+
+const WORK_COLORS = {
+  'Freelance':           '#253344',
+  '3 Computer Graphics': '#b85a1a',
+  'Gridshapes':          '#0a7a70',
+  'Noroff Oslo':         '#5456aa',
+  'Impact Reality':      '#7a32aa',
+  'Xvision':             '#b82238',
+  'Gimpville':           '#9e6a10',
+  'Shortcut Norway':     '#097a52',
+  'NPG':                 '#1278a0',
+};
+
+const education = [
+  { idx:0, type:'edu', institution:'Fiskarfagsskolen i Austevoll', field:'High School',                         start:d(2000,8), end:d(2001,6)  },
+  { idx:1, type:'edu', institution:'Bergens Handelsgym',           field:'High School, General Studies',        start:d(2001,8), end:d(2003,6)  },
+  { idx:2, type:'edu', institution:'Noroff Bergen',                field:'Vocational · 3D Design & Animation',  start:d(2008,8), end:d(2009,6)  },
+  { idx:3, type:'edu', institution:'Noroff Kristiansand',          field:'Vocational · Games Design',           start:d(2009,8), end:d(2010,6)  },
+  { idx:4, type:'edu', institution:'University of Teesside',       field:'BA · Creative Digital Media',         start:d(2010,8), end:d(2011,6)  },
+  { idx:5, type:'edu', institution:'Teesside University',          field:'MA · Environment Design (Games Art)', start:d(2011,8), end:d(2012,6)  },
+];
+
+const work = [
+  { idx:0, type:'work', company:'Freelance',           role:'VR Developer / 3D Real-time Artist', start:d(2008,12), end:d(2019,1)  },
+  { idx:1, type:'work', company:'3 Computer Graphics', role:'Designer / Partner',                  start:d(2012,3),  end:d(2013,3)  },
+  { idx:2, type:'work', company:'Gridshapes',           role:'Project Manager / Designer',          start:d(2013,3),  end:d(2016,5)  },
+  { idx:3, type:'work', company:'Noroff Oslo',          role:'3D Games Design Teacher',             start:d(2013,9),  end:d(2018,9)  },
+  { idx:4, type:'work', company:'Impact Reality',       role:'VR/AR Developer / 3D Artist',         start:d(2017,10), end:d(2018,9)  },
+  { idx:5, type:'work', company:'Xvision',              role:'Lead XR Developer / Tech PM',         start:d(2018,9),  end:d(2019,9)  },
+  { idx:6, type:'work', company:'Xvision',              role:'Project Manager / Interim CEO',       start:d(2019,9),  end:d(2022,5)  },
+  { idx:7, type:'work', company:'Gimpville',            role:'PM / VFX Coordinator',               start:d(2022,5),  end:d(2024,4)  },
+  { idx:8, type:'work', company:'Shortcut Norway',      role:'Senior Project Manager',             start:d(2024,5),  end:d(2026,3)  },
+  { idx:9, type:'work', company:'NPG',                  role:'Head of Interactive',                start:d(2026,3),  end:null       },
+];
+
+function assignLanes(items) {
+  const ends = [];
+  const out  = [];
+  for (const item of items) {
+    const iend = item.end ?? T_NOW;
+    let placed = false;
+    for (let li = 0; li < ends.length; li++) {
+      if (item.start >= ends[li]) {
+        ends[li] = iend;
+        out.push({ ...item, lane: li });
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      ends.push(iend);
+      out.push({ ...item, lane: ends.length - 1 });
+    }
+  }
+  return { items: out, count: ends.length };
+}
+
+const fmtDate = t =>
+  t === null
+    ? 'Present'
+    : new Date(t).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+
+const colorOf = item =>
+  item.type === 'edu' ? EDU_COLORS[item.idx] : (WORK_COLORS[item.company] || '#555');
+
+const labelOf = (item, mode) =>
+  item.type === 'edu'
+    ? (mode === 'role' ? item.field       : item.institution)
+    : (mode === 'role' ? item.role        : item.company);
+
+const tipHTML = item => {
+  const name = item.type === 'edu' ? item.institution : item.company;
+  const sub  = item.type === 'edu' ? item.field       : item.role;
+  return `<div class="tip-co">${name}</div>
+          <div class="tip-role">${sub}</div>
+          <div class="tip-dates">${fmtDate(item.start)} – ${fmtDate(item.end)}</div>`;
+};
+
+let mode = 'role';
+const tip = document.getElementById('tip');
+
+function buildSection(title, items, container) {
+  const { items: assigned, count } = assignLanes(items);
+
+  const section = document.createElement('div');
+  section.className = 'tl-section';
+
+  const secLabel = document.createElement('div');
+  secLabel.className = 'sec-label';
+  secLabel.textContent = title;
+  section.appendChild(secLabel);
+
+  const lanes = document.createElement('div');
+  lanes.className = 'lanes';
+
+  // "now" marker
+  const nowLine = document.createElement('div');
+  nowLine.className = 'now-line';
+  nowLine.style.left = pct(T_NOW);
+  const nowLbl = document.createElement('div');
+  nowLbl.className = 'now-lbl';
+  nowLbl.textContent = 'now';
+  nowLine.appendChild(nowLbl);
+  lanes.appendChild(nowLine);
+
+  for (let li = 0; li < count; li++) {
+    const lane = document.createElement('div');
+    lane.className = 'lane';
+
+    const track = document.createElement('div');
+    track.className = 'lane-track';
+    lane.appendChild(track);
+
+    for (const item of assigned) {
+      if (item.lane !== li) continue;
+      const iend  = item.end ?? T_NOW;
+      const left  = (item.start - T_START) / T_SPAN * 100;
+      const width = (iend - item.start)    / T_SPAN * 100;
+
+      const seg = document.createElement('div');
+      seg.className = 'seg';
+      seg.style.left       = left + '%';
+      seg.style.width      = width + '%';
+      seg.style.background = colorOf(item);
+
+      const lbl = document.createElement('span');
+      lbl.className        = 'seg-label';
+      lbl.dataset.type     = item.type;
+      lbl.dataset.idx      = item.idx;
+      lbl.textContent      = labelOf(item, mode);
+      seg.appendChild(lbl);
+
+      seg.addEventListener('mouseenter', () => { tip.innerHTML = tipHTML(item); tip.classList.add('show'); });
+      seg.addEventListener('mousemove',  e  => { tip.style.left = (e.clientX + 18) + 'px'; tip.style.top = (e.clientY - 10) + 'px'; });
+      seg.addEventListener('mouseleave', () => tip.classList.remove('show'));
+
+      lane.appendChild(seg);
+    }
+
+    lanes.appendChild(lane);
+  }
+
+  section.appendChild(lanes);
+
+  // Year axis
+  const axis = document.createElement('div');
+  axis.className = 'axis';
+  for (let y = 2000; y <= 2027; y += 2) {
+    const tick = document.createElement('div');
+    tick.className = 'tick';
+    tick.style.left = pct(new Date(y, 0, 1).getTime());
+    tick.textContent = y;
+    axis.appendChild(tick);
+  }
+  section.appendChild(axis);
+
+  container.appendChild(section);
+}
+
+function render() {
+  const tl = document.getElementById('tl');
+  tl.innerHTML = '';
+  buildSection('Education', education, tl);
+  buildSection('Work Experience', work, tl);
+}
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('btn-role').classList.toggle('active', m === 'role');
+  document.getElementById('btn-company').classList.toggle('active', m === 'company');
+  document.querySelectorAll('.seg-label').forEach(lbl => {
+    const src  = lbl.dataset.type === 'edu' ? education : work;
+    const item = src[+lbl.dataset.idx];
+    lbl.textContent = labelOf(item, m);
+  });
+}
+
+render();
+</script>
 </body>
 </html>
