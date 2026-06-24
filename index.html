@@ -245,10 +245,57 @@
     }
     .modal-close:hover { color: #94a3b8; }
 
+    /* ── Skills ── */
+    .skills-section { margin-bottom: 60px; }
+    .skills-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+    .skill-card {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 10px;
+      padding: 18px 16px 16px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .skill-card:hover {
+      background: rgba(255,255,255,0.04);
+      border-color: rgba(255,255,255,0.1);
+    }
+    .skill-icon {
+      color: #475569;
+      margin-bottom: 12px;
+    }
+    .skill-icon svg { width: 20px; height: 20px; }
+    .skill-name {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #94a3b8;
+      margin-bottom: 8px;
+      letter-spacing: 0.01em;
+    }
+    .skill-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .skill-tag {
+      font-size: 0.58rem;
+      color: #334155;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 3px;
+      padding: 2px 7px;
+      letter-spacing: 0.04em;
+    }
+
+    @media (max-width: 900px) { .skills-grid { grid-template-columns: repeat(2, 1fr); } }
     @media (max-width: 768px) {
       body { padding: 32px 20px 80px; }
       .header { flex-direction: column; gap: 24px; }
       .name { font-size: 1.7rem; }
+      .skills-grid { grid-template-columns: repeat(2, 1fr); }
     }
   </style>
 </head>
@@ -293,6 +340,136 @@
         <span class="cert-label">Unreal</span>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ── Skills ── -->
+<div class="skills-section">
+  <div class="sec-label" style="margin-bottom:14px;">Core Competencies</div>
+  <div class="skills-grid">
+
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      </div>
+      <div class="skill-name">Leadership</div>
+      <div class="skill-tags">
+        <span class="skill-tag">Team Management</span>
+        <span class="skill-tag">Program Mgmt</span>
+        <span class="skill-tag">Agile / PRINCE2</span>
+        <span class="skill-tag">Operations</span>
+      </div>
+    </div>
+
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5"/>
+          <text x="12" y="15" text-anchor="middle" font-size="5.5" font-weight="700" fill="currentColor" stroke="none" font-family="system-ui">UE</text>
+        </svg>
+      </div>
+      <div class="skill-name">Unreal Guru</div>
+      <div class="skill-tags">
+        <span class="skill-tag">Unreal Engine</span>
+        <span class="skill-tag">Blueprint</span>
+        <span class="skill-tag">Level Design</span>
+        <span class="skill-tag">Authorized Instr.</span>
+      </div>
+    </div>
+
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+        </svg>
+      </div>
+      <div class="skill-name">Technologist</div>
+      <div class="skill-tags">
+        <span class="skill-tag">AI / Digitization</span>
+        <span class="skill-tag">iOS / Android</span>
+        <span class="skill-tag">Interactive Design</span>
+        <span class="skill-tag">Real-time</span>
+      </div>
+    </div>
+
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+      </div>
+      <div class="skill-name">Game Designer</div>
+      <div class="skill-tags">
+        <span class="skill-tag">Game Design</span>
+        <span class="skill-tag">Pre-production</span>
+        <span class="skill-tag">Gamification</span>
+        <span class="skill-tag">Game Art</span>
+      </div>
+    </div>
+
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+        </svg>
+      </div>
+      <div class="skill-name">Environment Artist</div>
+      <div class="skill-tags">
+        <span class="skill-tag">3D Modeling</span>
+        <span class="skill-tag">UV Mapping</span>
+        <span class="skill-tag">3D Visualization</span>
+        <span class="skill-tag">3D Studio Max</span>
+      </div>
+    </div>
+
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>
+        </svg>
+      </div>
+      <div class="skill-name">VR / XR Developer</div>
+      <div class="skill-tags">
+        <span class="skill-tag">Virtual Reality</span>
+        <span class="skill-tag">Augmented Reality</span>
+        <span class="skill-tag">Mixed Reality</span>
+        <span class="skill-tag">Interactive Story</span>
+      </div>
+    </div>
+
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
+        </svg>
+      </div>
+      <div class="skill-name">Educator</div>
+      <div class="skill-tags">
+        <span class="skill-tag">Higher Education</span>
+        <span class="skill-tag">Lecturing</span>
+        <span class="skill-tag">Course Dev</span>
+        <span class="skill-tag">Tutoring</span>
+      </div>
+    </div>
+
+    <div class="skill-card">
+      <div class="skill-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+        </svg>
+      </div>
+      <div class="skill-name">Business Developer</div>
+      <div class="skill-tags">
+        <span class="skill-tag">Key Accounts</span>
+        <span class="skill-tag">Contract Mgmt</span>
+        <span class="skill-tag">CRM</span>
+        <span class="skill-tag">Negotiation</span>
+      </div>
+    </div>
+
   </div>
 </div>
 
