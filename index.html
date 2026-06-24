@@ -3,388 +3,444 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Adrian Lervåg Skår — CV</title>
+  <title>Charmed</title>
   <style>
-    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       min-height: 100vh;
-      background: #08080f;
-      color: #e2e8f0;
-      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
-      padding: 72px 64px 100px;
-    }
-
-    .header { margin-bottom: 60px; }
-    .name {
-      font-size: 2.4rem;
-      font-weight: 200;
-      letter-spacing: 0.03em;
-      color: #f8fafc;
-    }
-    .headline {
-      margin-top: 7px;
-      font-size: 0.78rem;
-      color: #2d3748;
-      letter-spacing: 0.05em;
-    }
-
-    .controls {
+      background: #0d0018;
       display: flex;
+      flex-direction: column;
       align-items: center;
-      gap: 6px;
-      margin-bottom: 60px;
-    }
-    .ctrl-label {
-      font-size: 0.63rem;
-      text-transform: uppercase;
-      letter-spacing: 0.15em;
-      color: #1e293b;
-      margin-right: 10px;
-    }
-    .tog {
-      padding: 6px 22px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.07);
-      background: transparent;
-      color: #2d3748;
-      font-size: 0.76rem;
-      cursor: pointer;
-      transition: all 0.2s;
-      font-family: inherit;
-      letter-spacing: 0.02em;
-    }
-    .tog:hover { color: #64748b; border-color: rgba(255,255,255,0.14); }
-    .tog.active {
-      background: rgba(255,255,255,0.93);
-      border-color: transparent;
-      color: #0a0a14;
-      font-weight: 600;
-    }
-
-    .scroll-wrap { overflow-x: auto; padding-bottom: 8px; }
-
-    .tl-container { min-width: 740px; }
-
-    .tl-section { margin-bottom: 48px; }
-
-    .sec-label {
-      font-size: 0.6rem;
-      text-transform: uppercase;
-      letter-spacing: 0.18em;
-      color: #1e2a3a;
-      margin-bottom: 12px;
-    }
-
-    .lanes { position: relative; }
-
-    .lane {
+      justify-content: center;
+      gap: 28px;
+      font-family: Georgia, serif;
+      overflow: hidden;
       position: relative;
-      height: 44px;
-      margin-bottom: 4px;
+      padding: 20px 0;
     }
 
-    .lane-track {
-      position: absolute;
+    /* ── Wallpaper layers ───────────────────────────── */
+    .bg {
+      position: fixed;
       inset: 0;
-      border-radius: 8px;
-      background: rgba(255,255,255,0.018);
-      border: 1px solid rgba(255,255,255,0.04);
+      background-size: cover;
+      background-position: center;
+      transition: opacity 1.8s ease-in-out;
+      opacity: 0;
+    }
+    .bg.visible { opacity: 1; }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(to bottom, rgba(10,0,25,.55), rgba(5,0,15,.45));
+      pointer-events: none;
     }
 
-    .seg {
+    /* ── Stars layer ────────────────────────────────── */
+    .stars { position: fixed; inset: 0; pointer-events: none; }
+    .stars span {
       position: absolute;
-      top: 3px;
-      bottom: 3px;
-      border-radius: 5px;
-      display: flex;
-      align-items: center;
-      padding: 0 11px;
-      overflow: hidden;
-      cursor: default;
-      transition: filter 0.15s, transform 0.15s;
-      min-width: 3px;
+      border-radius: 50%;
+      background: #fff;
+      animation: twinkle var(--d) ease-in-out infinite var(--dl);
     }
-    .seg:hover { filter: brightness(1.3); transform: scaleY(1.05); z-index: 10; }
-
-    .seg-label {
-      font-size: 0.7rem;
-      font-weight: 500;
-      color: rgba(255,255,255,0.82);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      user-select: none;
+    @keyframes twinkle {
+      0%,100% { opacity: var(--lo); }
+      50%      { opacity: var(--hi); transform: scale(1.4); }
     }
 
-    .now-line {
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      width: 1px;
-      background: rgba(255,255,255,0.1);
+    /* ── Triquetra ──────────────────────────────────── */
+    #triquetra {
+      position: fixed;
+      top: 50%; left: 50%;
+      width: min(520px, 92vw);
+      pointer-events: none;
+      /* rotation controlled by JS */
+    }
+
+    /* ── FX canvas (particles) ──────────────────────── */
+    #fx {
+      position: fixed;
+      inset: 0;
       pointer-events: none;
       z-index: 5;
     }
-    .now-lbl {
-      position: absolute;
-      bottom: calc(100% + 4px);
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 0.54rem;
-      color: rgba(255,255,255,0.18);
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      white-space: nowrap;
-    }
 
-    .axis {
+    /* ── Content ────────────────────────────────────── */
+    h1 {
       position: relative;
-      height: 20px;
-      margin-top: 5px;
+      z-index: 6;
+      font-size: clamp(2rem, 6vw, 3.8rem);
+      font-weight: 400;
+      letter-spacing: .4em;
+      text-transform: uppercase;
+      color: #f0e0ff;
+      text-shadow:
+        0 0 18px rgba(180,100,255,.95),
+        0 0 50px rgba(130,50,230,.7),
+        0 0 90px rgba(80,0,180,.45);
+      animation: glow 4s ease-in-out infinite;
     }
-    .tick {
-      position: absolute;
-      font-size: 0.6rem;
-      color: #151e2e;
-      transform: translateX(-50%);
-      user-select: none;
+    @keyframes glow {
+      0%,100% { text-shadow: 0 0 18px rgba(180,100,255,.95), 0 0 50px rgba(130,50,230,.7), 0 0 90px rgba(80,0,180,.45); }
+      50%      { text-shadow: 0 0 28px rgba(220,150,255,1), 0 0 70px rgba(180,100,255,.9), 0 0 130px rgba(110,0,220,.65); }
     }
 
-    #tip {
-      position: fixed;
-      background: #0c0c1a;
-      border: 1px solid rgba(255,255,255,0.08);
+    #player-wrap {
+      position: relative;
+      z-index: 6;
+      width: min(680px, 94vw);
+      aspect-ratio: 16 / 9;
       border-radius: 10px;
-      padding: 13px 17px;
-      font-size: 0.75rem;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.1s;
-      z-index: 9999;
-      max-width: 260px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px rgba(180,100,255,.3),
+        0 0 40px rgba(100,0,200,.55),
+        0 0 90px rgba(60,0,140,.35);
     }
-    #tip.show { opacity: 1; }
-    .tip-co   { font-weight: 600; color: #f1f5f9; margin-bottom: 4px; font-size: 0.82rem; }
-    .tip-role { color: #94a3b8; margin-bottom: 7px; line-height: 1.4; }
-    .tip-dates{ color: #2d3748; font-size: 0.67rem; }
+    #player-wrap iframe { width: 100%; height: 100%; }
 
-    @media (max-width: 768px) {
-      body { padding: 36px 20px 80px; }
-      .name { font-size: 1.7rem; }
+    button {
+      position: relative;
+      z-index: 6;
+      background: linear-gradient(135deg, #6500b8, #3a007a);
+      color: #f0e0ff;
+      border: 1px solid rgba(200,120,255,.5);
+      border-radius: 16px;
+      padding: 42px 0;
+      width: min(680px, 94vw);
+      font-size: 2.8rem;
+      font-family: Georgia, serif;
+      letter-spacing: .12em;
+      cursor: pointer;
+      transition: transform .1s, box-shadow .2s, background .2s;
+      box-shadow: 0 0 22px rgba(130,0,240,.65), 0 6px 30px rgba(60,0,130,.5);
+    }
+    button:hover {
+      background: linear-gradient(135deg, #7800d6, #4800a0);
+      box-shadow: 0 0 38px rgba(170,0,255,.85), 0 8px 40px rgba(90,0,170,.65);
+    }
+    button:active { transform: scale(.97); }
+
+    /* ── Lyrics ─────────────────────────────────────── */
+    #lyrics {
+      position: relative;
+      z-index: 6;
+      text-align: center;
+      color: rgba(240,220,255,.95);
+      font-size: clamp(.95rem, 3.5vw, 1.15rem);
+      font-style: italic;
+      line-height: 2;
+      letter-spacing: .03em;
+      text-shadow: 0 0 14px rgba(160,80,255,.6);
+      background: rgba(5, 0, 18, 0.72);
+      border-radius: 12px;
+      padding: 18px 28px;
+      backdrop-filter: blur(6px);
+      width: min(680px, 94vw);
+    }
+    #lyrics p { margin-bottom: .6em; }
+    #lyrics p:last-child { margin-bottom: 0; }
+
+    /* ── Portrait-only overlay ──────────────────────── */
+    #rotate-msg {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: #08000f;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      color: #e0c0ff;
+      font-family: Georgia, serif;
+      font-size: 1.2rem;
+      text-align: center;
+      padding: 40px;
+    }
+    #rotate-msg svg { opacity: .6; }
+    @media (orientation: landscape) and (max-width: 1024px) {
+      #rotate-msg { display: flex; }
     }
   </style>
 </head>
 <body>
 
-<div class="header">
-  <div class="name">Adrian Lervåg Skår</div>
-  <div class="headline">Head of Interactive &nbsp;·&nbsp; Technologist &nbsp;·&nbsp; 12+ yrs XR / Interactive Design / VFX</div>
-</div>
+  <div class="bg" id="bg-a"></div>
+  <div class="bg" id="bg-b"></div>
+  <div class="overlay"></div>
+  <div class="stars" id="stars"></div>
 
-<div class="controls">
-  <span class="ctrl-label">Label</span>
-  <button class="tog active" id="btn-role"    onclick="setMode('role')">Role</button>
-  <button class="tog"        id="btn-company" onclick="setMode('company')">Company</button>
-</div>
+  <canvas id="fx"></canvas>
 
-<div class="scroll-wrap">
-  <div class="tl-container" id="tl"></div>
-</div>
+  <svg id="triquetra" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path stroke="#a060ff" stroke-width="3" fill="rgba(120,40,220,0.15)"
+      d="M100 20 C115 20 140 35 145 60 C158 45 175 48 180 65
+         C185 82 170 100 155 105 C165 120 160 140 145 148
+         C130 156 112 148 105 135 C100 145 95 145 95 135
+         C88 148 70 156 55 148 C40 140 35 120 45 105
+         C30 100 15 82 20 65 C25 48 42 45 55 60
+         C60 35 85 20 100 20 Z"/>
+    <circle cx="100" cy="100" r="18"  stroke="#a060ff" stroke-width="2" fill="none"/>
+    <circle cx="100" cy="100" r="92"  stroke="rgba(160,80,255,0.3)" stroke-width="1" fill="none" stroke-dasharray="6 4"/>
+  </svg>
 
-<div id="tip"></div>
+  <!-- Portrait-only overlay -->
+  <div id="rotate-msg">
+    <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+      <rect x="16" y="8" width="32" height="48" rx="5" stroke="#c080ff" stroke-width="3"/>
+      <path d="M8 32 L4 28 M8 32 L4 36" stroke="#c080ff" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M8 32 Q2 32 2 26 Q2 18 10 18 L54 18 Q62 18 62 26 L62 38 Q62 46 54 46 L48 46" stroke="#c080ff" stroke-width="2" fill="none" stroke-dasharray="4 3"/>
+    </svg>
+    Please rotate your phone to portrait mode
+  </div>
 
-<script>
-const T_START = new Date(2000, 0, 1).getTime();
-const T_END   = new Date(2027, 0, 1).getTime();
-const T_NOW   = new Date(2026, 5, 24).getTime();
-const T_SPAN  = T_END - T_START;
+  <h1>Charmed</h1>
 
-const d   = (y, m=1, day=1) => new Date(y, m-1, day).getTime();
-const pct = t => ((t - T_START) / T_SPAN * 100) + '%';
+  <div id="lyrics">
+    <p>I am the sun<br>I am the air</p>
+    <p>I am human and I need to be loved<br>Just like everybody else does</p>
+    <p>See I've already waited too long<br>And all my hope is gone</p>
+  </div>
 
-const EDU_COLORS = [
-  '#3d4a5e', '#4e5f82', '#4a4fc4', '#7236b8',
-  '#2660c8', '#0882ae'
-];
+  <div id="player-wrap"><div id="player"></div></div>
 
-const WORK_COLORS = {
-  'Freelance':           '#253344',
-  '3 Computer Graphics': '#b85a1a',
-  'Gridshapes':          '#0a7a70',
-  'Noroff Oslo':         '#5456aa',
-  'Impact Reality':      '#7a32aa',
-  'Xvision':             '#b82238',
-  'Gimpville':           '#9e6a10',
-  'Shortcut Norway':     '#097a52',
-  'NPG':                 '#1278a0',
-};
+  <button onclick="playFromStart()">Play</button>
 
-const education = [
-  { idx:0, type:'edu', institution:'Fiskarfagsskolen i Austevoll', field:'High School',                         start:d(2000,8), end:d(2001,6)  },
-  { idx:1, type:'edu', institution:'Bergens Handelsgym',           field:'High School, General Studies',        start:d(2001,8), end:d(2003,6)  },
-  { idx:2, type:'edu', institution:'Noroff Bergen',                field:'Vocational · 3D Design & Animation',  start:d(2008,8), end:d(2009,6)  },
-  { idx:3, type:'edu', institution:'Noroff Kristiansand',          field:'Vocational · Games Design',           start:d(2009,8), end:d(2010,6)  },
-  { idx:4, type:'edu', institution:'University of Teesside',       field:'BA · Creative Digital Media',         start:d(2010,8), end:d(2011,6)  },
-  { idx:5, type:'edu', institution:'Teesside University',          field:'MA · Environment Design (Games Art)', start:d(2011,8), end:d(2012,6)  },
-];
+  <script>
+  // ── Stars ──────────────────────────────────────────
+  (function() {
+    const el = document.getElementById('stars');
+    for (let i = 0; i < 160; i++) {
+      const s = document.createElement('span');
+      const sz = .8 + Math.random() * 2;
+      s.style.cssText = [
+        `width:${sz}px`, `height:${sz}px`,
+        `top:${Math.random()*100}%`, `left:${Math.random()*100}%`,
+        `--d:${2+Math.random()*5}s`,
+        `--dl:-${Math.random()*6}s`,
+        `--lo:${.05+Math.random()*.25}`,
+        `--hi:${.5+Math.random()*.5}`,
+      ].join(';');
+      el.appendChild(s);
+    }
+  })();
 
-const work = [
-  { idx:0, type:'work', company:'Freelance',           role:'VR Developer / 3D Real-time Artist', start:d(2008,12), end:d(2019,1)  },
-  { idx:1, type:'work', company:'3 Computer Graphics', role:'Designer / Partner',                  start:d(2012,3),  end:d(2013,3)  },
-  { idx:2, type:'work', company:'Gridshapes',           role:'Project Manager / Designer',          start:d(2013,3),  end:d(2016,5)  },
-  { idx:3, type:'work', company:'Noroff Oslo',          role:'3D Games Design Teacher',             start:d(2013,9),  end:d(2018,9)  },
-  { idx:4, type:'work', company:'Impact Reality',       role:'VR/AR Developer / 3D Artist',         start:d(2017,10), end:d(2018,9)  },
-  { idx:5, type:'work', company:'Xvision',              role:'Lead XR Developer / Tech PM',         start:d(2018,9),  end:d(2019,9)  },
-  { idx:6, type:'work', company:'Xvision',              role:'Project Manager / Interim CEO',       start:d(2019,9),  end:d(2022,5)  },
-  { idx:7, type:'work', company:'Gimpville',            role:'PM / VFX Coordinator',               start:d(2022,5),  end:d(2024,4)  },
-  { idx:8, type:'work', company:'Shortcut Norway',      role:'Senior Project Manager',             start:d(2024,5),  end:d(2026,3)  },
-  { idx:9, type:'work', company:'NPG',                  role:'Head of Interactive',                start:d(2026,3),  end:null       },
-];
-
-function assignLanes(items) {
-  const ends = [];
-  const out  = [];
-  for (const item of items) {
-    const iend = item.end ?? T_NOW;
-    let placed = false;
-    for (let li = 0; li < ends.length; li++) {
-      if (item.start >= ends[li]) {
-        ends[li] = iend;
-        out.push({ ...item, lane: li });
-        placed = true;
-        break;
+  // ── Wallpaper slideshow ────────────────────────────
+  const IDS = [479340, 922715, 430676];
+  function tryLoad(id) {
+    const prefix = String(id).slice(0, 3);
+    return new Promise(resolve => {
+      let settled = false, failed = 0;
+      for (let n = 1; n <= 9; n++) {
+        const url = `https://images${n}.alphacoders.com/${prefix}/${id}.jpg`;
+        const img = new Image();
+        img.onload  = () => { if (!settled) { settled = true; resolve(url); } };
+        img.onerror = () => { failed++; if (failed === 9 && !settled) resolve(null); };
+        img.src = url;
       }
-    }
-    if (!placed) {
-      ends.push(iend);
-      out.push({ ...item, lane: ends.length - 1 });
-    }
+    });
   }
-  return { items: out, count: ends.length };
-}
-
-const fmtDate = t =>
-  t === null
-    ? 'Present'
-    : new Date(t).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
-
-const colorOf = item =>
-  item.type === 'edu' ? EDU_COLORS[item.idx] : (WORK_COLORS[item.company] || '#555');
-
-const labelOf = (item, mode) =>
-  item.type === 'edu'
-    ? (mode === 'role' ? item.field       : item.institution)
-    : (mode === 'role' ? item.role        : item.company);
-
-const tipHTML = item => {
-  const name = item.type === 'edu' ? item.institution : item.company;
-  const sub  = item.type === 'edu' ? item.field       : item.role;
-  return `<div class="tip-co">${name}</div>
-          <div class="tip-role">${sub}</div>
-          <div class="tip-dates">${fmtDate(item.start)} – ${fmtDate(item.end)}</div>`;
-};
-
-let mode = 'role';
-const tip = document.getElementById('tip');
-
-function buildSection(title, items, container) {
-  const { items: assigned, count } = assignLanes(items);
-
-  const section = document.createElement('div');
-  section.className = 'tl-section';
-
-  const secLabel = document.createElement('div');
-  secLabel.className = 'sec-label';
-  secLabel.textContent = title;
-  section.appendChild(secLabel);
-
-  const lanes = document.createElement('div');
-  lanes.className = 'lanes';
-
-  // "now" marker
-  const nowLine = document.createElement('div');
-  nowLine.className = 'now-line';
-  nowLine.style.left = pct(T_NOW);
-  const nowLbl = document.createElement('div');
-  nowLbl.className = 'now-lbl';
-  nowLbl.textContent = 'now';
-  nowLine.appendChild(nowLbl);
-  lanes.appendChild(nowLine);
-
-  for (let li = 0; li < count; li++) {
-    const lane = document.createElement('div');
-    lane.className = 'lane';
-
-    const track = document.createElement('div');
-    track.className = 'lane-track';
-    lane.appendChild(track);
-
-    for (const item of assigned) {
-      if (item.lane !== li) continue;
-      const iend  = item.end ?? T_NOW;
-      const left  = (item.start - T_START) / T_SPAN * 100;
-      const width = (iend - item.start)    / T_SPAN * 100;
-
-      const seg = document.createElement('div');
-      seg.className = 'seg';
-      seg.style.left       = left + '%';
-      seg.style.width      = width + '%';
-      seg.style.background = colorOf(item);
-
-      const lbl = document.createElement('span');
-      lbl.className        = 'seg-label';
-      lbl.dataset.type     = item.type;
-      lbl.dataset.idx      = item.idx;
-      lbl.textContent      = labelOf(item, mode);
-      seg.appendChild(lbl);
-
-      seg.addEventListener('mouseenter', () => { tip.innerHTML = tipHTML(item); tip.classList.add('show'); });
-      seg.addEventListener('mousemove',  e  => { tip.style.left = (e.clientX + 18) + 'px'; tip.style.top = (e.clientY - 10) + 'px'; });
-      seg.addEventListener('mouseleave', () => tip.classList.remove('show'));
-
-      lane.appendChild(seg);
+  (async function() {
+    const loaded = (await Promise.all(IDS.map(tryLoad))).filter(Boolean);
+    if (!loaded.length) return;
+    const layers = [document.getElementById('bg-a'), document.getElementById('bg-b')];
+    let active = 0, idx = 0;
+    function show(url) {
+      layers[active].style.backgroundImage = `url('${url}')`;
+      setTimeout(() => {
+        layers[active].classList.add('visible');
+        layers[1-active].classList.remove('visible');
+        active = 1 - active;
+      }, 50);
     }
+    show(loaded[0]);
+    if (loaded.length > 1) setInterval(() => { idx = (idx+1) % loaded.length; show(loaded[idx]); }, 7000);
+  })();
 
-    lanes.appendChild(lane);
+  // ── Particle FX ────────────────────────────────────
+  const canvas = document.getElementById('fx');
+  const ctx    = canvas.getContext('2d');
+  let W, H;
+  function resize() { W = canvas.width = innerWidth; H = canvas.height = innerHeight; }
+  resize();
+  addEventListener('resize', resize);
+
+  const particles = [];
+  const ripples   = [];
+  let triRot       = 0;
+  let triFlash     = 0;   // 0–1, extra opacity boost
+  let triSpinBoost = 0;   // extra degrees/frame
+  const tri = document.getElementById('triquetra');
+
+  function mkParticle(x, y, cfg) {
+    return {
+      x, y,
+      vx:      cfg.vx      ?? 0,
+      vy:      cfg.vy      ?? 0,
+      size:    cfg.size    ?? 2,
+      color:   cfg.color   ?? '#fff',
+      life:    1,
+      decay:   cfg.decay   ?? 0.018,
+      gravity: cfg.gravity ?? 0,
+      glow:    cfg.glow    ?? false,
+    };
   }
 
-  section.appendChild(lanes);
+  const PURPLE = ['#cc66ff','#aa33ff','#ff66ff','#ffffff','#ff99ff','#9933ff'];
+  const GOLD   = ['#ffffff','#ffeeaa','#ddaaff','#aaddff','#ffccff'];
 
-  // Year axis
-  const axis = document.createElement('div');
-  axis.className = 'axis';
-  for (let y = 2000; y <= 2027; y += 2) {
-    const tick = document.createElement('div');
-    tick.className = 'tick';
-    tick.style.left = pct(new Date(y, 0, 1).getTime());
-    tick.textContent = y;
-    axis.appendChild(tick);
+  // Ambient embers — always drifting upward
+  let emberTimer = 0;
+  function spawnEmber() {
+    const c = PURPLE[Math.floor(Math.random() * PURPLE.length)];
+    particles.push(mkParticle(
+      Math.random() * W,
+      H * 0.5 + Math.random() * H * 0.6,
+      { vx: (Math.random()-.5)*.5, vy: -(0.3+Math.random()*.9),
+        size: 1+Math.random()*2.2, color: c, decay: 0.003+Math.random()*.004, glow: true }
+    ));
   }
-  section.appendChild(axis);
 
-  container.appendChild(section);
-}
+  // A — burst from button centre
+  function spawnBurst(bx, by) {
+    for (let i = 0; i < 55; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 3 + Math.random() * 11;
+      particles.push(mkParticle(bx, by, {
+        vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed,
+        size: 2+Math.random()*4.5,
+        color: PURPLE[Math.floor(Math.random()*PURPLE.length)],
+        decay: 0.014+Math.random()*.02, gravity: 0.22, glow: true,
+      }));
+    }
+  }
 
-function render() {
-  const tl = document.getElementById('tl');
-  tl.innerHTML = '';
-  buildSection('Education', education, tl);
-  buildSection('Work Experience', work, tl);
-}
+  // B — expanding ring wave
+  function spawnRipple(x, y) {
+    ripples.push({ x, y, r: 0, life: 1 });
+  }
 
-function setMode(m) {
-  mode = m;
-  document.getElementById('btn-role').classList.toggle('active', m === 'role');
-  document.getElementById('btn-company').classList.toggle('active', m === 'company');
-  document.querySelectorAll('.seg-label').forEach(lbl => {
-    const src  = lbl.dataset.type === 'edu' ? education : work;
-    const item = src[+lbl.dataset.idx];
-    lbl.textContent = labelOf(item, m);
-  });
-}
+  // C — firefly shower from top
+  function spawnShower() {
+    for (let i = 0; i < 72; i++) {
+      setTimeout(() => {
+        particles.push(mkParticle(
+          Math.random() * W, -8,
+          { vx: (Math.random()-.5)*1.5, vy: 2+Math.random()*4,
+            size: 1.5+Math.random()*3,
+            color: GOLD[Math.floor(Math.random()*GOLD.length)],
+            decay: 0.005+Math.random()*.007, gravity: 0.05, glow: true }
+        ));
+      }, Math.random() * 700);
+    }
+  }
 
-render();
-</script>
+  // D — triquetra pulse + centre burst
+  function spawnTriquetraPulse() {
+    triFlash     = 1;
+    triSpinBoost = 2.8;
+    const cx = W/2, cy = H/2;
+    for (let i = 0; i < 35; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 2 + Math.random() * 7;
+      particles.push(mkParticle(cx, cy, {
+        vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed,
+        size: 2+Math.random()*3.5,
+        color: PURPLE[Math.floor(Math.random()*PURPLE.length)],
+        decay: 0.011, gravity: 0.06, glow: true,
+      }));
+    }
+  }
+
+  // Main loop
+  function loop(t) {
+    ctx.clearRect(0, 0, W, H);
+
+    // Ambient embers
+    if (t - emberTimer > 90) { spawnEmber(); emberTimer = t; }
+
+    // Ripples
+    for (let i = ripples.length-1; i >= 0; i--) {
+      const r = ripples[i];
+      r.r   += 18;
+      r.life -= 0.018;
+      if (r.life <= 0) { ripples.splice(i,1); continue; }
+      ctx.save();
+      ctx.strokeStyle = `rgba(180,100,255,${r.life * .55})`;
+      ctx.lineWidth   = 2.5;
+      ctx.shadowColor = '#b060ff';
+      ctx.shadowBlur  = 14;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, r.r, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Particles
+    for (let i = particles.length-1; i >= 0; i--) {
+      const p = particles[i];
+      p.vx += 0; p.vy += p.gravity;
+      p.x  += p.vx; p.y += p.vy;
+      p.life -= p.decay;
+      if (p.life <= 0) { particles.splice(i,1); continue; }
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, p.life);
+      if (p.glow) { ctx.shadowColor = p.color; ctx.shadowBlur = p.size * 3.5; }
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Triquetra — JS-controlled rotation & flash
+    triRot      += 0.05 + triSpinBoost;           // base 3 deg/s @ 60fps
+    triFlash     = Math.max(0, triFlash - 0.025);
+    triSpinBoost = Math.max(0, triSpinBoost - 0.06);
+    const opacity = 0.045 + triFlash * 0.38;
+    tri.style.opacity   = opacity;
+    tri.style.transform = `translate(-50%,-50%) rotate(${triRot}deg)`;
+
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // All effects triggered together on play
+  function triggerFX() {
+    const rect = document.querySelector('button').getBoundingClientRect();
+    const bx = rect.left + rect.width/2;
+    const by = rect.top  + rect.height/2;
+    spawnBurst(bx, by);
+    spawnRipple(bx, by);
+    spawnShower();
+    spawnTriquetraPulse();
+  }
+
+  // ── YouTube IFrame API ─────────────────────────────
+  var tag = document.createElement('script');
+  tag.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(tag);
+
+  var player;
+  function onYouTubeIframeAPIReady() {
+    player = new YT.Player('player', {
+      videoId: 'U_IOTMu5zDE',
+      playerVars: { playsinline: 1, rel: 0 }
+    });
+  }
+
+  function playFromStart() {
+    if (!player || !player.seekTo) return;
+    player.seekTo(0);
+    player.playVideo();
+    triggerFX();
+  }
+  </script>
+
 </body>
 </html>
