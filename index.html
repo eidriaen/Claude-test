@@ -130,12 +130,17 @@
       position: relative;
       z-index: 6;
       text-align: center;
-      color: rgba(240,220,255,.82);
+      color: rgba(240,220,255,.95);
       font-size: clamp(.95rem, 3.5vw, 1.15rem);
       font-style: italic;
       line-height: 2;
       letter-spacing: .03em;
       text-shadow: 0 0 14px rgba(160,80,255,.6);
+      background: rgba(5, 0, 18, 0.72);
+      border-radius: 12px;
+      padding: 18px 28px;
+      backdrop-filter: blur(6px);
+      width: min(680px, 94vw);
     }
     #lyrics p { margin-bottom: .6em; }
     #lyrics p:last-child { margin-bottom: 0; }
@@ -197,7 +202,7 @@
   <h1>Charmed</h1>
 
   <div id="lyrics">
-    <p>I am the sun<br>And the air</p>
+    <p>I am the sun<br>I am the air</p>
     <p>I am human and I need to be loved<br>Just like everybody else does</p>
     <p>See I've already waited too long<br>And all my hope is gone</p>
   </div>
