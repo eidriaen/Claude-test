@@ -20,7 +20,7 @@
       position: relative;
     }
 
-    /* ── Wallpaper slideshow layers ─────────────────── */
+    /* ── Wallpaper layers ───────────────────────────── */
     .bg {
       position: fixed;
       inset: 0;
@@ -31,37 +31,47 @@
     }
     .bg.visible { opacity: 1; }
 
-    /* Dark overlay so content stays readable */
     .overlay {
       position: fixed;
       inset: 0;
-      background:
-        linear-gradient(to bottom, rgba(10,0,25,.55) 0%, rgba(5,0,15,.45) 100%);
+      background: linear-gradient(to bottom, rgba(10,0,25,.55), rgba(5,0,15,.45));
       pointer-events: none;
     }
 
-    /* ── Stars (fallback / layered on top of photos) ── */
-    .stars {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-    }
+    /* ── Stars layer ────────────────────────────────── */
+    .stars { position: fixed; inset: 0; pointer-events: none; }
     .stars span {
       position: absolute;
       border-radius: 50%;
       background: #fff;
-      animation: twinkle var(--d) ease-in-out infinite;
-      animation-delay: var(--dl);
+      animation: twinkle var(--d) ease-in-out infinite var(--dl);
     }
     @keyframes twinkle {
       0%,100% { opacity: var(--lo); }
       50%      { opacity: var(--hi); transform: scale(1.4); }
     }
 
+    /* ── Triquetra ──────────────────────────────────── */
+    #triquetra {
+      position: fixed;
+      top: 50%; left: 50%;
+      width: min(520px, 92vw);
+      pointer-events: none;
+      /* rotation controlled by JS */
+    }
+
+    /* ── FX canvas (particles) ──────────────────────── */
+    #fx {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+    }
+
     /* ── Content ────────────────────────────────────── */
     h1 {
       position: relative;
-      z-index: 1;
+      z-index: 6;
       font-size: clamp(2rem, 6vw, 3.8rem);
       font-weight: 400;
       letter-spacing: .4em;
@@ -75,12 +85,12 @@
     }
     @keyframes glow {
       0%,100% { text-shadow: 0 0 18px rgba(180,100,255,.95), 0 0 50px rgba(130,50,230,.7), 0 0 90px rgba(80,0,180,.45); }
-      50%      { text-shadow: 0 0 28px rgba(220,150,255,1),  0 0 70px rgba(180,100,255,.9), 0 0 130px rgba(110,0,220,.65); }
+      50%      { text-shadow: 0 0 28px rgba(220,150,255,1), 0 0 70px rgba(180,100,255,.9), 0 0 130px rgba(110,0,220,.65); }
     }
 
     #player-wrap {
       position: relative;
-      z-index: 1;
+      z-index: 6;
       width: min(680px, 94vw);
       aspect-ratio: 16 / 9;
       border-radius: 10px;
@@ -94,7 +104,7 @@
 
     button {
       position: relative;
-      z-index: 1;
+      z-index: 6;
       background: linear-gradient(135deg, #6500b8, #3a007a);
       color: #f0e0ff;
       border: 1px solid rgba(200,120,255,.5);
@@ -105,9 +115,7 @@
       letter-spacing: .12em;
       cursor: pointer;
       transition: transform .1s, box-shadow .2s, background .2s;
-      box-shadow:
-        0 0 22px rgba(130,0,240,.65),
-        0 6px 30px rgba(60,0,130,.5);
+      box-shadow: 0 0 22px rgba(130,0,240,.65), 0 6px 30px rgba(60,0,130,.5);
     }
     button:hover {
       background: linear-gradient(135deg, #7800d6, #4800a0);
@@ -118,106 +126,260 @@
 </head>
 <body>
 
-  <!-- Two bg layers for crossfade -->
   <div class="bg" id="bg-a"></div>
   <div class="bg" id="bg-b"></div>
   <div class="overlay"></div>
   <div class="stars" id="stars"></div>
 
+  <canvas id="fx"></canvas>
+
+  <svg id="triquetra" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path stroke="#a060ff" stroke-width="3" fill="rgba(120,40,220,0.15)"
+      d="M100 20 C115 20 140 35 145 60 C158 45 175 48 180 65
+         C185 82 170 100 155 105 C165 120 160 140 145 148
+         C130 156 112 148 105 135 C100 145 95 145 95 135
+         C88 148 70 156 55 148 C40 140 35 120 45 105
+         C30 100 15 82 20 65 C25 48 42 45 55 60
+         C60 35 85 20 100 20 Z"/>
+    <circle cx="100" cy="100" r="18"  stroke="#a060ff" stroke-width="2" fill="none"/>
+    <circle cx="100" cy="100" r="92"  stroke="rgba(160,80,255,0.3)" stroke-width="1" fill="none" stroke-dasharray="6 4"/>
+  </svg>
+
   <h1>Charmed</h1>
 
-  <div id="player-wrap">
-    <div id="player"></div>
-  </div>
+  <div id="player-wrap"><div id="player"></div></div>
 
-  <button onclick="playFromStart()">&#9654;&ensp;Play</button>
+  <button onclick="playFromStart()">Play</button>
 
   <script>
-    // ── Stars ────────────────────────────────────────
-    (function() {
-      const el = document.getElementById('stars');
-      for (let i = 0; i < 160; i++) {
-        const s = document.createElement('span');
-        const sz = .8 + Math.random() * 2;
-        s.style.cssText = [
-          `width:${sz}px`, `height:${sz}px`,
-          `top:${Math.random()*100}%`, `left:${Math.random()*100}%`,
-          `--d:${2+Math.random()*5}s`,
-          `--dl:${-Math.random()*6}s`,
-          `--lo:${.05+Math.random()*.25}`,
-          `--hi:${.5+Math.random()*.5}`,
-        ].join(';');
-        el.appendChild(s);
+  // ── Stars ──────────────────────────────────────────
+  (function() {
+    const el = document.getElementById('stars');
+    for (let i = 0; i < 160; i++) {
+      const s = document.createElement('span');
+      const sz = .8 + Math.random() * 2;
+      s.style.cssText = [
+        `width:${sz}px`, `height:${sz}px`,
+        `top:${Math.random()*100}%`, `left:${Math.random()*100}%`,
+        `--d:${2+Math.random()*5}s`,
+        `--dl:-${Math.random()*6}s`,
+        `--lo:${.05+Math.random()*.25}`,
+        `--hi:${.5+Math.random()*.5}`,
+      ].join(';');
+      el.appendChild(s);
+    }
+  })();
+
+  // ── Wallpaper slideshow ────────────────────────────
+  const IDS = [479340, 922715, 430676];
+  function tryLoad(id) {
+    const prefix = String(id).slice(0, 3);
+    return new Promise(resolve => {
+      let settled = false, failed = 0;
+      for (let n = 1; n <= 9; n++) {
+        const url = `https://images${n}.alphacoders.com/${prefix}/${id}.jpg`;
+        const img = new Image();
+        img.onload  = () => { if (!settled) { settled = true; resolve(url); } };
+        img.onerror = () => { failed++; if (failed === 9 && !settled) resolve(null); };
+        img.src = url;
       }
-    })();
+    });
+  }
+  (async function() {
+    const loaded = (await Promise.all(IDS.map(tryLoad))).filter(Boolean);
+    if (!loaded.length) return;
+    const layers = [document.getElementById('bg-a'), document.getElementById('bg-b')];
+    let active = 0, idx = 0;
+    function show(url) {
+      layers[active].style.backgroundImage = `url('${url}')`;
+      setTimeout(() => {
+        layers[active].classList.add('visible');
+        layers[1-active].classList.remove('visible');
+        active = 1 - active;
+      }, 50);
+    }
+    show(loaded[0]);
+    if (loaded.length > 1) setInterval(() => { idx = (idx+1) % loaded.length; show(loaded[idx]); }, 7000);
+  })();
 
-    // ── Wallpaper slideshow ──────────────────────────
-    // AlphaCoders wallpaper IDs for Charmed (1998)
-    const IDS = [479340, 922715, 430676];
+  // ── Particle FX ────────────────────────────────────
+  const canvas = document.getElementById('fx');
+  const ctx    = canvas.getContext('2d');
+  let W, H;
+  function resize() { W = canvas.width = innerWidth; H = canvas.height = innerHeight; }
+  resize();
+  addEventListener('resize', resize);
 
-    function tryLoad(id) {
-      // AlphaCoders uses images1–images9.alphacoders.com CDN.
-      // Try all servers in parallel and return the first URL that loads.
-      const prefix = String(id).slice(0, 3);
-      return new Promise(resolve => {
-        let settled = false;
-        let failed  = 0;
-        for (let n = 1; n <= 9; n++) {
-          const url = `https://images${n}.alphacoders.com/${prefix}/${id}.jpg`;
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.onload = () => { if (!settled) { settled = true; resolve(url); } };
-          img.onerror = () => { failed++; if (failed === 9 && !settled) resolve(null); };
-          img.src = url;
-        }
-      });
+  const particles = [];
+  const ripples   = [];
+  let triRot       = 0;
+  let triFlash     = 0;   // 0–1, extra opacity boost
+  let triSpinBoost = 0;   // extra degrees/frame
+  const tri = document.getElementById('triquetra');
+
+  function mkParticle(x, y, cfg) {
+    return {
+      x, y,
+      vx:      cfg.vx      ?? 0,
+      vy:      cfg.vy      ?? 0,
+      size:    cfg.size    ?? 2,
+      color:   cfg.color   ?? '#fff',
+      life:    1,
+      decay:   cfg.decay   ?? 0.018,
+      gravity: cfg.gravity ?? 0,
+      glow:    cfg.glow    ?? false,
+    };
+  }
+
+  const PURPLE = ['#cc66ff','#aa33ff','#ff66ff','#ffffff','#ff99ff','#9933ff'];
+  const GOLD   = ['#ffffff','#ffeeaa','#ddaaff','#aaddff','#ffccff'];
+
+  // Ambient embers — always drifting upward
+  let emberTimer = 0;
+  function spawnEmber() {
+    const c = PURPLE[Math.floor(Math.random() * PURPLE.length)];
+    particles.push(mkParticle(
+      Math.random() * W,
+      H * 0.5 + Math.random() * H * 0.6,
+      { vx: (Math.random()-.5)*.5, vy: -(0.3+Math.random()*.9),
+        size: 1+Math.random()*2.2, color: c, decay: 0.003+Math.random()*.004, glow: true }
+    ));
+  }
+
+  // A — burst from button centre
+  function spawnBurst(bx, by) {
+    for (let i = 0; i < 55; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 3 + Math.random() * 11;
+      particles.push(mkParticle(bx, by, {
+        vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed,
+        size: 2+Math.random()*4.5,
+        color: PURPLE[Math.floor(Math.random()*PURPLE.length)],
+        decay: 0.014+Math.random()*.02, gravity: 0.22, glow: true,
+      }));
+    }
+  }
+
+  // B — expanding ring wave
+  function spawnRipple(x, y) {
+    ripples.push({ x, y, r: 0, life: 1 });
+  }
+
+  // C — firefly shower from top
+  function spawnShower() {
+    for (let i = 0; i < 72; i++) {
+      setTimeout(() => {
+        particles.push(mkParticle(
+          Math.random() * W, -8,
+          { vx: (Math.random()-.5)*1.5, vy: 2+Math.random()*4,
+            size: 1.5+Math.random()*3,
+            color: GOLD[Math.floor(Math.random()*GOLD.length)],
+            decay: 0.005+Math.random()*.007, gravity: 0.05, glow: true }
+        ));
+      }, Math.random() * 700);
+    }
+  }
+
+  // D — triquetra pulse + centre burst
+  function spawnTriquetraPulse() {
+    triFlash     = 1;
+    triSpinBoost = 2.8;
+    const cx = W/2, cy = H/2;
+    for (let i = 0; i < 35; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 2 + Math.random() * 7;
+      particles.push(mkParticle(cx, cy, {
+        vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed,
+        size: 2+Math.random()*3.5,
+        color: PURPLE[Math.floor(Math.random()*PURPLE.length)],
+        decay: 0.011, gravity: 0.06, glow: true,
+      }));
+    }
+  }
+
+  // Main loop
+  function loop(t) {
+    ctx.clearRect(0, 0, W, H);
+
+    // Ambient embers
+    if (t - emberTimer > 90) { spawnEmber(); emberTimer = t; }
+
+    // Ripples
+    for (let i = ripples.length-1; i >= 0; i--) {
+      const r = ripples[i];
+      r.r   += 18;
+      r.life -= 0.018;
+      if (r.life <= 0) { ripples.splice(i,1); continue; }
+      ctx.save();
+      ctx.strokeStyle = `rgba(180,100,255,${r.life * .55})`;
+      ctx.lineWidth   = 2.5;
+      ctx.shadowColor = '#b060ff';
+      ctx.shadowBlur  = 14;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, r.r, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.restore();
     }
 
-    (async function initSlideshow() {
-      const loaded = (await Promise.all(IDS.map(tryLoad))).filter(Boolean);
-      if (!loaded.length) return; // keep CSS fallback
-
-      const layers = [document.getElementById('bg-a'), document.getElementById('bg-b')];
-      let active = 0, idx = 0;
-
-      function show(url) {
-        const next = layers[active];
-        next.style.backgroundImage = `url('${url}')`;
-        // small delay so the image is painted before fade-in
-        setTimeout(() => {
-          layers[active].classList.add('visible');
-          layers[1 - active].classList.remove('visible');
-          active = 1 - active;
-        }, 50);
-      }
-
-      show(loaded[0]);
-      if (loaded.length > 1) {
-        setInterval(() => {
-          idx = (idx + 1) % loaded.length;
-          show(loaded[idx]);
-        }, 7000);
-      }
-    })();
-
-    // ── YouTube IFrame API ───────────────────────────
-    var tag = document.createElement('script');
-    tag.src = 'https://www.youtube.com/iframe_api';
-    document.head.appendChild(tag);
-
-    var player;
-    function onYouTubeIframeAPIReady() {
-      player = new YT.Player('player', {
-        videoId: 'U_IOTMu5zDE',
-        playerVars: { playsinline: 1, rel: 0 }
-      });
+    // Particles
+    for (let i = particles.length-1; i >= 0; i--) {
+      const p = particles[i];
+      p.vx += 0; p.vy += p.gravity;
+      p.x  += p.vx; p.y += p.vy;
+      p.life -= p.decay;
+      if (p.life <= 0) { particles.splice(i,1); continue; }
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, p.life);
+      if (p.glow) { ctx.shadowColor = p.color; ctx.shadowBlur = p.size * 3.5; }
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
     }
 
-    function playFromStart() {
-      if (!player || !player.seekTo) return;
-      player.seekTo(0);
-      player.playVideo();
-    }
+    // Triquetra — JS-controlled rotation & flash
+    triRot      += 0.05 + triSpinBoost;           // base 3 deg/s @ 60fps
+    triFlash     = Math.max(0, triFlash - 0.025);
+    triSpinBoost = Math.max(0, triSpinBoost - 0.06);
+    const opacity = 0.045 + triFlash * 0.38;
+    tri.style.opacity   = opacity;
+    tri.style.transform = `translate(-50%,-50%) rotate(${triRot}deg)`;
+
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // All effects triggered together on play
+  function triggerFX() {
+    const rect = document.querySelector('button').getBoundingClientRect();
+    const bx = rect.left + rect.width/2;
+    const by = rect.top  + rect.height/2;
+    spawnBurst(bx, by);
+    spawnRipple(bx, by);
+    spawnShower();
+    spawnTriquetraPulse();
+  }
+
+  // ── YouTube IFrame API ─────────────────────────────
+  var tag = document.createElement('script');
+  tag.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(tag);
+
+  var player;
+  function onYouTubeIframeAPIReady() {
+    player = new YT.Player('player', {
+      videoId: 'U_IOTMu5zDE',
+      playerVars: { playsinline: 1, rel: 0 }
+    });
+  }
+
+  function playFromStart() {
+    if (!player || !player.seekTo) return;
+    player.seekTo(0);
+    player.playVideo();
+    triggerFX();
+  }
   </script>
 
 </body>
