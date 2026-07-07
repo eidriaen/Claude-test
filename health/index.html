@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Health">
+  <link rel="manifest" href="manifest.json">
+  <title>Health &amp; Bench</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #030712; color: #e2e8f0; }
+    #root { min-height: 100dvh; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/Recharts.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.7/babel.min.js"></script>
+
+  <script type="text/babel">
+const { useState, useEffect } = React;
+const { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } = Recharts;
+
+// ============ SEED DATA ============
+const seedSessions = [
+  { date: "04.12.25", sets: [[20,8],[40,8,8],[60,3,3],[50,8],[55,5,5,3]] },
+  { date: "07.12.25", sets: [[30,8],[40,8,8],[50,8,8,8],[55,5,5,5]] },
+  { date: "14.12.25", sets: [[40,8],[50,8],[55,8],[60,5,5,4]] },
+  { date: "18.01.26", sets: [[40,8],[50,8],[55,8],[60,6,6,5]] },
+  { date: "14.02.26", sets: [[40,8],[50,8],[55,6,6,6]] },
+  { date: "22.02.26", sets: [[40,8],[50,8],[55,8],[60,6,4,5]] },
+  { date: "01.03.26", sets: [[40,8,8],[50,8],[55,6],[60,5]] },
+  { date: "08.03.26", sets: [[40,8,8],[50,8],[55,8],[60,6,4]] },
+  { date: "15.03.26", sets: [[30,8],[40,8],[45,8],[50,8],[60,8],[70,3]] },
+  { date: "22.03.26", sets: [[40,8],[50,8],[60,8],[70,3,3]] },
+  { date: "29.03.26", sets: [[40,8],[50,8],[60,8],[70,3,3,3]] },
+  { date: "20.04.26", sets: [[40,8],[50,8],[60,8],[70,4,4]] },
+  { date: "25.04.26", sets: [[40,8],[50,8],[70,3,3,2]] },
+  { date: "03.05.26", sets: [[40,8],[60,8],[70,5,5,5]] },
+  { date: "15.05.26", sets: [[50,8],[60,8],[70,5]] },
+  { date: "18.05.26", sets: [[60,8,8],[80,1],[75,4,3]] },
+  { date: "24.05.26", sets: [[40,8],[60,8],[80,2],[75,4,3,3]] },
+  { date: "31.05.26", sets: [[40,8],[60,8],[75,3,3,3,2]] },
+  { date: "06.06.26", sets: [[40,8],[60,8],[80,3,2]] },
+  { date: "01.07.26", sets: [[40,8],[60,8],[75,3],[70,5,5,4]] },
+  { date: "07.07.26", sets: [[40,8],[60,8],[70,5],[75,3,3]] },
+];
+
+const seedHealth = {
+  weightKg: "85-95",
+  rhr: 67,
+  hrv: 57.7,
+  vo2max: 33.8,
+  sleepAvg: 7.0,
+  steps: 7815,
+  caffeine: 398,
+  updated: "27.05.26 (Apple Health export)",
+};
+
+const rhrTrend = [58.8, 56.4, 58.0, 58.1, 56.6, 58.2, 60.4, 60.2, 65.5, 65.5, 65.4, 67.3];
+const trendMonths = ["Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May"];
+
+const GOALS = [
+  { kg: 80,  label: "Goal 1 — back to 80" },
+  { kg: 85,  label: "Goal 2 — new PB at 85" },
+  { kg: 100, label: "Long term — 100" },
+];
+
+// ============ HELPERS ============
+function epley(w, r) { return r <= 1 ? w : Math.round(w * (1 + r / 30)); }
+
+function toIso(ddmmyy) {
+  const [d, m, y] = ddmmyy.split(".");
+  return `20${y}-${m}-${d}`;
+}
+
+function todayDDMMYY() {
+  const n = new Date();
+  const p = (x) => String(x).padStart(2, "0");
+  return `${p(n.getDate())}.${p(n.getMonth() + 1)}.${String(n.getFullYear()).slice(2)}`;
+}
+
+function sessionStats(s) {
+  let best = { kg: 0, reps: 0, e1rm: 0 };
+  for (const set of s.sets) {
+    const kg = set[0];
+    for (const r of set.slice(1)) {
+      const e = epley(kg, r);
+      if (e > best.e1rm) best = { kg, reps: r, e1rm: e };
+    }
+  }
+  return best;
+}
+
+// ============ STORAGE ============
+async function loadKey(key, seed) {
+  try {
+    const val = localStorage.getItem(key);
+    if (val) return JSON.parse(val);
+  } catch (e) {}
+  try { localStorage.setItem(key, JSON.stringify(seed)); } catch (e) {}
+  return seed;
+}
+
+async function saveKey(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch (e) { return false; }
+}
+
+// ============ DESIGN TOKENS ============
+const C = {
+  bg: "#030712", card: "#080f1c", cardUp: "#0c1a2e", line: "#1e293b",
+  txt: "#e2e8f0", dim: "#64748b", faint: "#334155",
+  blue: "#60a5fa", green: "#22c55e", amber: "#f59e0b", red: "#f87171", violet: "#a78bfa",
+};
+const mono = "'JetBrains Mono', monospace";
+
+function Eyebrow({ children }) {
+  return <div style={{ fontSize: 10, color: C.faint, textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: mono }}>{children}</div>;
+}
+
+// ============ GOAL RAIL ============
+function GoalRail({ sessions }) {
+  const postBreak = sessions.filter(s => toIso(s.date) >= "2026-07-01");
+  const latest = sessions.length ? sessionStats(sessions[sessions.length - 1]) : { e1rm: 0 };
+  const e1rm = latest.e1rm;
+
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 16 }}>
+      <Eyebrow>Goal ladder · est. 1RM now: {e1rm} kg</Eyebrow>
+      <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 12 }}>
+        {GOALS.map((g, i) => {
+          const hit = postBreak.some(s => s.sets.some(set => set[0] >= g.kg && set.slice(1).some(r => r >= 1)));
+          const pct = Math.min(100, Math.round((e1rm / g.kg) * 100));
+          const color = hit ? C.green : pct >= 100 ? C.blue : i === 0 ? C.blue : i === 1 ? C.violet : C.amber;
+          return (
+            <div key={g.kg}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                <span style={{ fontSize: 12, color: C.dim }}>{g.label}</span>
+                <span style={{ fontSize: 12, fontFamily: mono, color }}>
+                  {hit ? "DONE ✓" : pct >= 100 ? "in reach" : `${pct}%`}
+                </span>
+              </div>
+              <div style={{ height: 8, background: "#0b1120", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ width: `${pct}%`, height: "100%", background: color, opacity: hit ? 1 : 0.7, borderRadius: 4, transition: "width 0.6s ease" }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ============ ADD SESSION FORM ============
+function AddSession({ onSave, onCancel }) {
+  const [date, setDate] = useState(todayDDMMYY());
+  const [rows, setRows] = useState([{ kg: "", reps: "" }, { kg: "", reps: "" }, { kg: "", reps: "" }]);
+  const [err, setErr] = useState("");
+
+  const update = (i, field, val) => {
+    const next = [...rows];
+    next[i] = { ...next[i], [field]: val };
+    setRows(next);
+  };
+
+  const submit = () => {
+    if (!/^\d{2}\.\d{2}\.\d{2}$/.test(date)) { setErr("Date must be DD.MM.YY"); return; }
+    const sets = [];
+    for (const r of rows) {
+      if (!r.kg.trim()) continue;
+      const kg = parseFloat(r.kg.replace(",", "."));
+      const reps = r.reps.trim().split(/[\s,]+/).map(Number).filter(n => n > 0);
+      if (!kg || !reps.length) { setErr("Each row needs weight + at least one rep count"); return; }
+      sets.push([kg, ...reps]);
+    }
+    if (!sets.length) { setErr("Add at least one set"); return; }
+    onSave({ date, sets });
+  };
+
+  const inputStyle = {
+    background: "#0b1120", border: `1px solid ${C.line}`, borderRadius: 8,
+    color: C.txt, padding: "12px 12px", fontSize: 16, fontFamily: mono, width: "100%",
+    boxSizing: "border-box", outline: "none",
+  };
+
+  return (
+    <div style={{ background: C.cardUp, border: `1px solid ${C.blue}44`, borderRadius: 12, padding: 16 }}>
+      <Eyebrow>Log session — same format as your notes</Eyebrow>
+      <div style={{ marginTop: 12 }}>
+        <label style={{ fontSize: 11, color: C.dim }}>Date (DD.MM.YY)</label>
+        <input value={date} onChange={e => setDate(e.target.value)} style={{ ...inputStyle, marginTop: 4, marginBottom: 12 }} />
+
+        {rows.map((r, i) => (
+          <div key={i} style={{ display: "grid", gridTemplateColumns: "90px 1fr", gap: 8, marginBottom: 8 }}>
+            <input placeholder="kg" inputMode="decimal" value={r.kg} onChange={e => update(i, "kg", e.target.value)} style={inputStyle} />
+            <input placeholder="reps e.g. 5 5 4" inputMode="numeric" value={r.reps} onChange={e => update(i, "reps", e.target.value)} style={inputStyle} />
+          </div>
+        ))}
+
+        <button onClick={() => setRows([...rows, { kg: "", reps: "" }])} style={{
+          background: "none", border: `1px dashed ${C.line}`, borderRadius: 8, color: C.dim,
+          padding: "10px", width: "100%", fontSize: 13, cursor: "pointer", marginBottom: 12,
+        }}>+ add row</button>
+
+        {err && <div style={{ color: C.red, fontSize: 12, marginBottom: 10 }}>{err}</div>}
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={submit} style={{
+            flex: 1, background: C.blue, border: "none", borderRadius: 8, color: "#030712",
+            padding: "13px", fontSize: 14, fontWeight: 700, cursor: "pointer",
+          }}>Save session</button>
+          <button onClick={onCancel} style={{
+            background: "none", border: `1px solid ${C.line}`, borderRadius: 8, color: C.dim,
+            padding: "13px 18px", fontSize: 14, cursor: "pointer",
+          }}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============ SESSION LIST ============
+function SessionList({ sessions, onDelete }) {
+  const [openIdx, setOpenIdx] = useState(null);
+  const [confirmIdx, setConfirmIdx] = useState(null);
+  const reversed = [...sessions].reverse();
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {reversed.map((s, ri) => {
+        const i = sessions.length - 1 - ri;
+        const st = sessionStats(s);
+        const open = openIdx === i;
+        return (
+          <div key={s.date + i} style={{
+            background: open ? C.cardUp : C.card,
+            border: `1px solid ${open ? C.blue + "44" : C.line}`,
+            borderRadius: 10, padding: "12px 14px",
+          }}>
+            <div onClick={() => setOpenIdx(open ? null : i)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
+              <span style={{ fontSize: 13, fontFamily: mono, color: C.blue }}>{s.date}</span>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <span style={{ fontSize: 12, color: C.dim }}>Top: <span style={{ color: C.txt }}>{st.kg}×{st.reps}</span></span>
+                <span style={{ fontSize: 12, color: C.dim }}>~1RM: <span style={{ color: C.green }}>{st.e1rm}</span></span>
+                <span style={{ color: C.faint, fontSize: 11 }}>{open ? "▲" : "▼"}</span>
+              </div>
+            </div>
+            {open && (
+              <div style={{ marginTop: 10 }}>
+                {s.sets.map((set, j) => (
+                  <div key={j} style={{ display: "flex", gap: 10, alignItems: "center", padding: "5px 0", borderTop: j ? `1px solid ${C.line}55` : "none" }}>
+                    <span style={{ fontFamily: mono, fontSize: 13, color: C.dim, width: 48 }}>{set[0]}kg</span>
+                    <div style={{ display: "flex", gap: 5 }}>
+                      {set.slice(1).map((r, k) => (
+                        <span key={k} style={{
+                          background: r >= 8 ? "#1e3a2f" : r >= 5 ? "#1a2d1a" : "#2d1a1a",
+                          color: r >= 8 ? "#4ade80" : r >= 5 ? "#86efac" : "#fca5a5",
+                          borderRadius: 4, padding: "2px 8px", fontSize: 12, fontFamily: mono,
+                        }}>{r}</span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                {confirmIdx === i ? (
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <button onClick={() => { onDelete(i); setConfirmIdx(null); setOpenIdx(null); }} style={{
+                      background: "#2d1a1a", border: `1px solid ${C.red}44`, borderRadius: 6,
+                      color: C.red, padding: "8px 14px", fontSize: 12, cursor: "pointer",
+                    }}>Confirm delete</button>
+                    <button onClick={() => setConfirmIdx(null)} style={{
+                      background: "none", border: `1px solid ${C.line}`, borderRadius: 6,
+                      color: C.dim, padding: "8px 14px", fontSize: 12, cursor: "pointer",
+                    }}>Keep</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setConfirmIdx(i)} style={{
+                    background: "none", border: "none", color: C.faint, fontSize: 11,
+                    cursor: "pointer", marginTop: 8, padding: 0, textDecoration: "underline",
+                  }}>delete this session</button>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============ HEALTH TAB ============
+function HealthTab({ health, onUpdate }) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({});
+
+  const startEdit = () => {
+    setForm({ weightKg: health.weightKg, rhr: health.rhr, hrv: health.hrv, vo2max: health.vo2max, sleepAvg: health.sleepAvg, caffeine: health.caffeine });
+    setEditing(true);
+  };
+
+  const save = () => {
+    const p = (x) => (x === "" || x === null || x === undefined) ? null : (isNaN(parseFloat(x)) ? x : parseFloat(x));
+    onUpdate({
+      ...health,
+      weightKg: form.weightKg || health.weightKg,
+      rhr: p(form.rhr) ?? health.rhr,
+      hrv: p(form.hrv) ?? health.hrv,
+      vo2max: p(form.vo2max) ?? health.vo2max,
+      sleepAvg: p(form.sleepAvg) ?? health.sleepAvg,
+      caffeine: p(form.caffeine) ?? health.caffeine,
+      updated: todayDDMMYY() + " (manual)",
+    });
+    setEditing(false);
+  };
+
+  const inputStyle = {
+    background: "#0b1120", border: `1px solid ${C.line}`, borderRadius: 8,
+    color: C.txt, padding: "11px 12px", fontSize: 16, fontFamily: mono, width: "100%",
+    boxSizing: "border-box", outline: "none", marginTop: 4,
+  };
+
+  const metrics = [
+    { key: "rhr",      label: "Resting HR",  unit: "bpm",         status: health.rhr > 65 ? C.amber : C.green,    hint: health.rhr > 65 ? "Elevated vs your 2025 baseline (~58)" : "Back near your baseline — nice" },
+    { key: "vo2max",   label: "VO₂ Max",      unit: "mL/kg/min",   status: health.vo2max < 38 ? C.red : C.green,   hint: health.vo2max < 38 ? "Below 'fair' for 40–44 (target 38+)" : "In the fair+ zone" },
+    { key: "hrv",      label: "HRV",          unit: "ms",          status: C.blue,                                  hint: "Stable is fine; trend matters more than the number" },
+    { key: "sleepAvg", label: "Sleep avg",    unit: "h/night",     status: health.sleepAvg >= 7 ? C.green : C.amber, hint: "Aim ≥7h, consistent bedtime" },
+    { key: "caffeine", label: "Caffeine",     unit: "mg/day",      status: health.caffeine >= 400 ? C.amber : C.green, hint: health.caffeine >= 400 ? "At/above 400mg guideline — 2pm curfew helps" : "Under the 400mg guideline" },
+    { key: "weightKg", label: "Weight",       unit: "kg",          status: C.blue,                                  hint: "Optional — trends over months, not days" },
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+        {[["Age", "40"], ["Height", "183 cm"], ["Bench ~1RM", "83 kg"]].map(([l, v]) => (
+          <div key={l} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 8, padding: "9px 12px" }}>
+            <Eyebrow>{l}</Eyebrow>
+            <div style={{ fontSize: 15, fontWeight: 600, color: C.dim, marginTop: 2, fontFamily: mono }}>{v}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        {metrics.map(m => (
+          <div key={m.key} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "12px 14px", borderLeft: `3px solid ${m.status}` }}>
+            <Eyebrow>{m.label}</Eyebrow>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 5, marginTop: 4 }}>
+              <span style={{ fontSize: 22, fontWeight: 700, fontFamily: mono, color: C.txt }}>{health[m.key]}</span>
+              <span style={{ fontSize: 10, color: C.faint }}>{m.unit}</span>
+            </div>
+            <div style={{ fontSize: 10, color: C.dim, marginTop: 6, lineHeight: 1.4 }}>{m.hint}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 14 }}>
+        <Eyebrow>Resting HR — 12mo trend (from May export)</Eyebrow>
+        <ResponsiveContainer width="100%" height={120}>
+          <LineChart data={rhrTrend.map((v, i) => ({ m: trendMonths[i], v }))} margin={{ left: -28, right: 8, top: 10 }}>
+            <XAxis dataKey="m" tick={{ fontSize: 9, fill: C.faint }} interval={1} />
+            <YAxis tick={{ fontSize: 9, fill: C.faint }} domain={[50, 72]} />
+            <Tooltip contentStyle={{ background: C.cardUp, border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 12 }} />
+            <ReferenceLine y={58} stroke={C.green} strokeDasharray="4 4" strokeOpacity={0.4} />
+            <Line type="monotone" dataKey="v" name="RHR" stroke={C.amber} strokeWidth={2} dot={{ r: 2.5, fill: C.amber }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {editing ? (
+        <div style={{ background: C.cardUp, border: `1px solid ${C.blue}44`, borderRadius: 12, padding: 16 }}>
+          <Eyebrow>Update numbers — grab them from the Health app</Eyebrow>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
+            {[["rhr","Resting HR (bpm)"],["vo2max","VO₂ Max"],["hrv","HRV (ms)"],["sleepAvg","Sleep avg (h)"],["caffeine","Caffeine (mg)"],["weightKg","Weight (kg)"]].map(([k, l]) => (
+              <div key={k}>
+                <label style={{ fontSize: 11, color: C.dim }}>{l}</label>
+                <input inputMode="decimal" value={form[k] ?? ""} onChange={e => setForm({ ...form, [k]: e.target.value })} style={inputStyle} />
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+            <button onClick={save} style={{ flex: 1, background: C.blue, border: "none", borderRadius: 8, color: "#030712", padding: "13px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Save</button>
+            <button onClick={() => setEditing(false)} style={{ background: "none", border: `1px solid ${C.line}`, borderRadius: 8, color: C.dim, padding: "13px 18px", fontSize: 14, cursor: "pointer" }}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={startEdit} style={{
+          background: C.card, border: `1px solid ${C.line}`, borderRadius: 10,
+          color: C.blue, padding: "13px", fontSize: 14, fontWeight: 600, cursor: "pointer",
+        }}>↻ Update health numbers</button>
+      )}
+
+      <div style={{ fontSize: 11, color: C.faint, lineHeight: 1.6, padding: "0 4px" }}>
+        Web apps can't read Apple Health directly (Apple only allows native apps).
+        Quickest refresh: open Health → Browse → copy the latest Resting HR, VO₂ Max &amp; sleep numbers here (~30 sec).
+        For a full deep-dive with trends, re-export from Health and drop the file into a Claude chat.
+        <div style={{ marginTop: 6 }}>Last updated: {health.updated}</div>
+      </div>
+    </div>
+  );
+}
+
+// ============ MAIN APP ============
+function App() {
+  const [tab, setTab] = useState("bench");
+  const [sessions, setSessions] = useState(null);
+  const [health, setHealth] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [toast, setToast] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      const s = await loadKey("bench-sessions", seedSessions);
+      s.sort((a, b) => toIso(a.date).localeCompare(toIso(b.date)));
+      setSessions(s);
+      setHealth(await loadKey("health-metrics", seedHealth));
+    })();
+  }, []);
+
+  const flash = (msg) => { setToast(msg); setTimeout(() => setToast(""), 2500); };
+
+  const addSession = async (s) => {
+    const next = [...sessions, s].sort((a, b) => toIso(a.date).localeCompare(toIso(b.date)));
+    setSessions(next);
+    setAdding(false);
+    const ok = await saveKey("bench-sessions", next);
+    flash(ok ? "Session saved ✓" : "Saved locally — storage unavailable");
+  };
+
+  const deleteSession = async (i) => {
+    const next = sessions.filter((_, j) => j !== i);
+    setSessions(next);
+    const ok = await saveKey("bench-sessions", next);
+    flash(ok ? "Deleted" : "Deleted locally — storage unavailable");
+  };
+
+  const updateHealth = async (h) => {
+    setHealth(h);
+    const ok = await saveKey("health-metrics", h);
+    flash(ok ? "Health numbers updated ✓" : "Saved locally — storage unavailable");
+  };
+
+  if (!sessions || !health) {
+    return (
+      <div style={{ background: C.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: C.dim, fontFamily: "'Sora', sans-serif" }}>
+        Loading…
+      </div>
+    );
+  }
+
+  const chartData = sessions.map(s => ({ label: s.date.slice(0, 5), e1rm: sessionStats(s).e1rm }));
+  const latest = sessionStats(sessions[sessions.length - 1]);
+  const peak = Math.max(...chartData.map(d => d.e1rm));
+
+  return (
+    <div style={{
+      fontFamily: "'Sora', system-ui, sans-serif",
+      background: C.bg, minHeight: "100vh", color: C.txt,
+      padding: "20px 14px 40px", maxWidth: 640, margin: "0 auto",
+    }}>
+      {toast && (
+        <div style={{
+          position: "fixed", top: 14, left: "50%", transform: "translateX(-50%)",
+          background: C.cardUp, border: `1px solid ${C.green}55`, color: C.green,
+          borderRadius: 20, padding: "8px 18px", fontSize: 13, zIndex: 10, fontFamily: mono,
+        }}>{toast}</div>
+      )}
+
+      <div style={{ marginBottom: 18 }}>
+        <Eyebrow>Personal tracker · saves automatically</Eyebrow>
+        <h1 style={{ fontSize: 22, fontWeight: 700, margin: "6px 0 0", letterSpacing: "-0.02em" }}>
+          Health &amp; Bench
+        </h1>
+      </div>
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 18 }}>
+        {[["bench", "🏋️ Bench"], ["health", "❤️ Health"]].map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{
+            flex: 1, background: tab === id ? C.cardUp : "transparent",
+            border: `1px solid ${tab === id ? C.blue + "55" : C.line}`,
+            borderRadius: 10, padding: "12px", fontSize: 14, fontWeight: 600,
+            color: tab === id ? C.blue : C.faint, cursor: "pointer",
+          }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "bench" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+            {[
+              ["Est. 1RM now", `${latest.e1rm} kg`, C.blue],
+              ["Peak 1RM",    `${peak} kg`,         C.green],
+              ["Sessions",    `${sessions.length}`, C.dim],
+            ].map(([l, v, col]) => (
+              <div key={l} style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 10, padding: "11px 12px" }}>
+                <Eyebrow>{l}</Eyebrow>
+                <div style={{ fontSize: 20, fontWeight: 700, color: col, marginTop: 3, fontFamily: mono }}>{v}</div>
+              </div>
+            ))}
+          </div>
+
+          <GoalRail sessions={sessions} />
+
+          {adding ? (
+            <AddSession onSave={addSession} onCancel={() => setAdding(false)} />
+          ) : (
+            <button onClick={() => setAdding(true)} style={{
+              background: C.blue, border: "none", borderRadius: 10, color: "#030712",
+              padding: "15px", fontSize: 15, fontWeight: 700, cursor: "pointer",
+            }}>+ Log today's session</button>
+          )}
+
+          <div style={{ background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 14 }}>
+            <Eyebrow>Estimated 1RM progression (Epley)</Eyebrow>
+            <ResponsiveContainer width="100%" height={160}>
+              <LineChart data={chartData} margin={{ left: -24, right: 8, top: 10 }}>
+                <XAxis dataKey="label" tick={{ fontSize: 9, fill: C.faint }} interval={Math.floor(chartData.length / 6)} />
+                <YAxis tick={{ fontSize: 9, fill: C.faint }} domain={[60, 105]} />
+                <Tooltip contentStyle={{ background: C.cardUp, border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 12 }} />
+                <ReferenceLine y={100} stroke={C.amber} strokeDasharray="4 4" strokeOpacity={0.5} label={{ value: "100kg goal", fill: C.amber, fontSize: 9, position: "insideTopRight" }} />
+                <Line type="monotone" dataKey="e1rm" name="Est. 1RM" stroke={C.blue} strokeWidth={2} dot={{ r: 2.5, fill: C.blue }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <SessionList sessions={sessions} onDelete={deleteSession} />
+        </div>
+      )}
+
+      {tab === "health" && <HealthTab health={health} onUpdate={updateHealth} />}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
