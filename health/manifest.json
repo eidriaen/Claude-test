@@ -1,0 +1,10 @@
+{
+  "name": "Health & Bench",
+  "short_name": "Health",
+  "description": "Personal bench press tracker and health metrics",
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#030712",
+  "theme_color": "#030712"
+}

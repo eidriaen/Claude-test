@@ -2,377 +2,445 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Terrain">
-  <link rel="manifest" href="manifest.json">
-  <title>Terrain</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Charmed</title>
   <style>
-    * { margin: 0; padding: 0; }
-    body { overflow: hidden; background: #0d1b2a; }
-    canvas { display: block; touch-action: none; }
-    #hint {
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      background: #0d0018;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      font-family: Georgia, serif;
+      overflow: hidden;
+      position: relative;
+      padding: 20px 0;
+    }
+
+    /* ── Wallpaper layers ───────────────────────────── */
+    .bg {
       position: fixed;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(-50%);
-      color: rgba(255,255,255,0.35);
-      font: 13px/1 -apple-system, sans-serif;
+      inset: 0;
+      background-size: cover;
+      background-position: center;
+      transition: opacity 1.8s ease-in-out;
+      opacity: 0;
+    }
+    .bg.visible { opacity: 1; }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(to bottom, rgba(10,0,25,.55), rgba(5,0,15,.45));
       pointer-events: none;
-      letter-spacing: 0.04em;
+    }
+
+    /* ── Stars layer ────────────────────────────────── */
+    .stars { position: fixed; inset: 0; pointer-events: none; }
+    .stars span {
+      position: absolute;
+      border-radius: 50%;
+      background: #fff;
+      animation: twinkle var(--d) ease-in-out infinite var(--dl);
+    }
+    @keyframes twinkle {
+      0%,100% { opacity: var(--lo); }
+      50%      { opacity: var(--hi); transform: scale(1.4); }
+    }
+
+    /* ── Triquetra ──────────────────────────────────── */
+    #triquetra {
+      position: fixed;
+      top: 50%; left: 50%;
+      width: min(520px, 92vw);
+      pointer-events: none;
+      /* rotation controlled by JS */
+    }
+
+    /* ── FX canvas (particles) ──────────────────────── */
+    #fx {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    /* ── Content ────────────────────────────────────── */
+    h1 {
+      position: relative;
+      z-index: 6;
+      font-size: clamp(2rem, 6vw, 3.8rem);
+      font-weight: 400;
+      letter-spacing: .4em;
+      text-transform: uppercase;
+      color: #f0e0ff;
+      text-shadow:
+        0 0 18px rgba(180,100,255,.95),
+        0 0 50px rgba(130,50,230,.7),
+        0 0 90px rgba(80,0,180,.45);
+      animation: glow 4s ease-in-out infinite;
+    }
+    @keyframes glow {
+      0%,100% { text-shadow: 0 0 18px rgba(180,100,255,.95), 0 0 50px rgba(130,50,230,.7), 0 0 90px rgba(80,0,180,.45); }
+      50%      { text-shadow: 0 0 28px rgba(220,150,255,1), 0 0 70px rgba(180,100,255,.9), 0 0 130px rgba(110,0,220,.65); }
+    }
+
+    #player-wrap {
+      position: relative;
+      z-index: 6;
+      width: min(680px, 94vw);
+      aspect-ratio: 16 / 9;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px rgba(180,100,255,.3),
+        0 0 40px rgba(100,0,200,.55),
+        0 0 90px rgba(60,0,140,.35);
+    }
+    #player-wrap iframe { width: 100%; height: 100%; }
+
+    button {
+      position: relative;
+      z-index: 6;
+      background: linear-gradient(135deg, #6500b8, #3a007a);
+      color: #f0e0ff;
+      border: 1px solid rgba(200,120,255,.5);
+      border-radius: 16px;
+      padding: 42px 0;
+      width: min(680px, 94vw);
+      font-size: 2.8rem;
+      font-family: Georgia, serif;
+      letter-spacing: .12em;
+      cursor: pointer;
+      transition: transform .1s, box-shadow .2s, background .2s;
+      box-shadow: 0 0 22px rgba(130,0,240,.65), 0 6px 30px rgba(60,0,130,.5);
+    }
+    button:hover {
+      background: linear-gradient(135deg, #7800d6, #4800a0);
+      box-shadow: 0 0 38px rgba(170,0,255,.85), 0 8px 40px rgba(90,0,170,.65);
+    }
+    button:active { transform: scale(.97); }
+
+    /* ── Lyrics ─────────────────────────────────────── */
+    #lyrics {
+      position: relative;
+      z-index: 6;
+      text-align: center;
+      color: rgba(240,220,255,.95);
+      font-size: clamp(.95rem, 3.5vw, 1.15rem);
+      font-style: italic;
+      line-height: 2;
+      letter-spacing: .03em;
+      text-shadow: 0 0 14px rgba(160,80,255,.6);
+      background: rgba(5, 0, 18, 0.72);
+      border-radius: 12px;
+      padding: 18px 28px;
+      backdrop-filter: blur(6px);
+      width: min(680px, 94vw);
+    }
+    #lyrics p { margin-bottom: .6em; }
+    #lyrics p:last-child { margin-bottom: 0; }
+
+    /* ── Portrait-only overlay ──────────────────────── */
+    #rotate-msg {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: #08000f;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      color: #e0c0ff;
+      font-family: Georgia, serif;
+      font-size: 1.2rem;
+      text-align: center;
+      padding: 40px;
+    }
+    #rotate-msg svg { opacity: .6; }
+    @media (orientation: landscape) and (max-width: 1024px) {
+      #rotate-msg { display: flex; }
     }
   </style>
 </head>
 <body>
-  <div id="hint">drag to rotate &nbsp;·&nbsp; pinch to zoom</div>
 
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  <div class="bg" id="bg-a"></div>
+  <div class="bg" id="bg-b"></div>
+  <div class="overlay"></div>
+  <div class="stars" id="stars"></div>
+
+  <canvas id="fx"></canvas>
+
+  <svg id="triquetra" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path stroke="#a060ff" stroke-width="3" fill="rgba(120,40,220,0.15)"
+      d="M100 20 C115 20 140 35 145 60 C158 45 175 48 180 65
+         C185 82 170 100 155 105 C165 120 160 140 145 148
+         C130 156 112 148 105 135 C100 145 95 145 95 135
+         C88 148 70 156 55 148 C40 140 35 120 45 105
+         C30 100 15 82 20 65 C25 48 42 45 55 60
+         C60 35 85 20 100 20 Z"/>
+    <circle cx="100" cy="100" r="18"  stroke="#a060ff" stroke-width="2" fill="none"/>
+    <circle cx="100" cy="100" r="92"  stroke="rgba(160,80,255,0.3)" stroke-width="1" fill="none" stroke-dasharray="6 4"/>
+  </svg>
+
+  <!-- Portrait-only overlay -->
+  <div id="rotate-msg">
+    <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+      <rect x="16" y="8" width="32" height="48" rx="5" stroke="#c080ff" stroke-width="3"/>
+      <path d="M8 32 L4 28 M8 32 L4 36" stroke="#c080ff" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M8 32 Q2 32 2 26 Q2 18 10 18 L54 18 Q62 18 62 26 L62 38 Q62 46 54 46 L48 46" stroke="#c080ff" stroke-width="2" fill="none" stroke-dasharray="4 3"/>
+    </svg>
+    Please rotate your phone to portrait mode
+  </div>
+
+  <h1>Charmed</h1>
+
+  <div id="lyrics">
+    <p>I am the sun<br>I am the air</p>
+    <p>I am human and I need to be loved<br>Just like everybody else does</p>
+    <p>See I've already waited too long<br>And all my hope is gone</p>
+  </div>
+
+  <div id="player-wrap"><div id="player"></div></div>
+
+  <button onclick="playFromStart()">Play</button>
+
+  <script>
+  // ── Stars ──────────────────────────────────────────
+  (function() {
+    const el = document.getElementById('stars');
+    for (let i = 0; i < 160; i++) {
+      const s = document.createElement('span');
+      const sz = .8 + Math.random() * 2;
+      s.style.cssText = [
+        `width:${sz}px`, `height:${sz}px`,
+        `top:${Math.random()*100}%`, `left:${Math.random()*100}%`,
+        `--d:${2+Math.random()*5}s`,
+        `--dl:-${Math.random()*6}s`,
+        `--lo:${.05+Math.random()*.25}`,
+        `--hi:${.5+Math.random()*.5}`,
+      ].join(';');
+      el.appendChild(s);
     }
+  })();
+
+  // ── Wallpaper slideshow ────────────────────────────
+  const IDS = [479340, 922715, 430676];
+  function tryLoad(id) {
+    const prefix = String(id).slice(0, 3);
+    return new Promise(resolve => {
+      let settled = false, failed = 0;
+      for (let n = 1; n <= 9; n++) {
+        const url = `https://images${n}.alphacoders.com/${prefix}/${id}.jpg`;
+        const img = new Image();
+        img.onload  = () => { if (!settled) { settled = true; resolve(url); } };
+        img.onerror = () => { failed++; if (failed === 9 && !settled) resolve(null); };
+        img.src = url;
+      }
+    });
+  }
+  (async function() {
+    const loaded = (await Promise.all(IDS.map(tryLoad))).filter(Boolean);
+    if (!loaded.length) return;
+    const layers = [document.getElementById('bg-a'), document.getElementById('bg-b')];
+    let active = 0, idx = 0;
+    function show(url) {
+      layers[active].style.backgroundImage = `url('${url}')`;
+      setTimeout(() => {
+        layers[active].classList.add('visible');
+        layers[1-active].classList.remove('visible');
+        active = 1 - active;
+      }, 50);
+    }
+    show(loaded[0]);
+    if (loaded.length > 1) setInterval(() => { idx = (idx+1) % loaded.length; show(loaded[idx]); }, 7000);
+  })();
+
+  // ── Particle FX ────────────────────────────────────
+  const canvas = document.getElementById('fx');
+  const ctx    = canvas.getContext('2d');
+  let W, H;
+  function resize() { W = canvas.width = innerWidth; H = canvas.height = innerHeight; }
+  resize();
+  addEventListener('resize', resize);
+
+  const particles = [];
+  const ripples   = [];
+  let triRot       = 0;
+  let triFlash     = 0;   // 0–1, extra opacity boost
+  let triSpinBoost = 0;   // extra degrees/frame
+  const tri = document.getElementById('triquetra');
+
+  function mkParticle(x, y, cfg) {
+    return {
+      x, y,
+      vx:      cfg.vx      ?? 0,
+      vy:      cfg.vy      ?? 0,
+      size:    cfg.size    ?? 2,
+      color:   cfg.color   ?? '#fff',
+      life:    1,
+      decay:   cfg.decay   ?? 0.018,
+      gravity: cfg.gravity ?? 0,
+      glow:    cfg.glow    ?? false,
+    };
+  }
+
+  const PURPLE = ['#cc66ff','#aa33ff','#ff66ff','#ffffff','#ff99ff','#9933ff'];
+  const GOLD   = ['#ffffff','#ffeeaa','#ddaaff','#aaddff','#ffccff'];
+
+  // Ambient embers — always drifting upward
+  let emberTimer = 0;
+  function spawnEmber() {
+    const c = PURPLE[Math.floor(Math.random() * PURPLE.length)];
+    particles.push(mkParticle(
+      Math.random() * W,
+      H * 0.5 + Math.random() * H * 0.6,
+      { vx: (Math.random()-.5)*.5, vy: -(0.3+Math.random()*.9),
+        size: 1+Math.random()*2.2, color: c, decay: 0.003+Math.random()*.004, glow: true }
+    ));
+  }
+
+  // A — burst from button centre
+  function spawnBurst(bx, by) {
+    for (let i = 0; i < 55; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 3 + Math.random() * 11;
+      particles.push(mkParticle(bx, by, {
+        vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed,
+        size: 2+Math.random()*4.5,
+        color: PURPLE[Math.floor(Math.random()*PURPLE.length)],
+        decay: 0.014+Math.random()*.02, gravity: 0.22, glow: true,
+      }));
+    }
+  }
+
+  // B — expanding ring wave
+  function spawnRipple(x, y) {
+    ripples.push({ x, y, r: 0, life: 1 });
+  }
+
+  // C — firefly shower from top
+  function spawnShower() {
+    for (let i = 0; i < 72; i++) {
+      setTimeout(() => {
+        particles.push(mkParticle(
+          Math.random() * W, -8,
+          { vx: (Math.random()-.5)*1.5, vy: 2+Math.random()*4,
+            size: 1.5+Math.random()*3,
+            color: GOLD[Math.floor(Math.random()*GOLD.length)],
+            decay: 0.005+Math.random()*.007, gravity: 0.05, glow: true }
+        ));
+      }, Math.random() * 700);
+    }
+  }
+
+  // D — triquetra pulse + centre burst
+  function spawnTriquetraPulse() {
+    triFlash     = 1;
+    triSpinBoost = 2.8;
+    const cx = W/2, cy = H/2;
+    for (let i = 0; i < 35; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 2 + Math.random() * 7;
+      particles.push(mkParticle(cx, cy, {
+        vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed,
+        size: 2+Math.random()*3.5,
+        color: PURPLE[Math.floor(Math.random()*PURPLE.length)],
+        decay: 0.011, gravity: 0.06, glow: true,
+      }));
+    }
+  }
+
+  // Main loop
+  function loop(t) {
+    ctx.clearRect(0, 0, W, H);
+
+    // Ambient embers
+    if (t - emberTimer > 90) { spawnEmber(); emberTimer = t; }
+
+    // Ripples
+    for (let i = ripples.length-1; i >= 0; i--) {
+      const r = ripples[i];
+      r.r   += 18;
+      r.life -= 0.018;
+      if (r.life <= 0) { ripples.splice(i,1); continue; }
+      ctx.save();
+      ctx.strokeStyle = `rgba(180,100,255,${r.life * .55})`;
+      ctx.lineWidth   = 2.5;
+      ctx.shadowColor = '#b060ff';
+      ctx.shadowBlur  = 14;
+      ctx.beginPath();
+      ctx.arc(r.x, r.y, r.r, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Particles
+    for (let i = particles.length-1; i >= 0; i--) {
+      const p = particles[i];
+      p.vx += 0; p.vy += p.gravity;
+      p.x  += p.vx; p.y += p.vy;
+      p.life -= p.decay;
+      if (p.life <= 0) { particles.splice(i,1); continue; }
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, p.life);
+      if (p.glow) { ctx.shadowColor = p.color; ctx.shadowBlur = p.size * 3.5; }
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Triquetra — JS-controlled rotation & flash
+    triRot      += 0.05 + triSpinBoost;           // base 3 deg/s @ 60fps
+    triFlash     = Math.max(0, triFlash - 0.025);
+    triSpinBoost = Math.max(0, triSpinBoost - 0.06);
+    const opacity = 0.045 + triFlash * 0.38;
+    tri.style.opacity   = opacity;
+    tri.style.transform = `translate(-50%,-50%) rotate(${triRot}deg)`;
+
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // All effects triggered together on play
+  function triggerFX() {
+    const rect = document.querySelector('button').getBoundingClientRect();
+    const bx = rect.left + rect.width/2;
+    const by = rect.top  + rect.height/2;
+    spawnBurst(bx, by);
+    spawnRipple(bx, by);
+    spawnShower();
+    spawnTriquetraPulse();
+  }
+
+  // ── YouTube IFrame API ─────────────────────────────
+  var tag = document.createElement('script');
+  tag.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(tag);
+
+  var player;
+  function onYouTubeIframeAPIReady() {
+    player = new YT.Player('player', {
+      videoId: 'U_IOTMu5zDE',
+      playerVars: { playsinline: 1, rel: 0 }
+    });
+  }
+
+  function playFromStart() {
+    if (!player || !player.seekTo) return;
+    player.seekTo(0);
+    player.playVideo();
+    triggerFX();
   }
   </script>
 
-  <script type="module">
-    import * as THREE from 'three';
-    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-
-    // ── Renderer ──────────────────────────────────────────────────────────────
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    document.body.appendChild(renderer.domElement);
-
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0d1b2a);
-    scene.fog = new THREE.FogExp2(0x0d1b2a, 0.03);
-
-    const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.set(0, 10, 16);
-
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.06;
-    controls.maxPolarAngle = Math.PI / 2.05;
-    controls.minDistance = 4;
-    controls.maxDistance = 50;
-
-    // ── Terrain ───────────────────────────────────────────────────────────────
-    function terrainH(x, z) {
-      return Math.sin(x * 0.25) * Math.cos(z * 0.30) * 2.0
-           + Math.sin(x * 0.60 + 1.2) * Math.sin(z * 0.40 + 0.5) * 0.8
-           + Math.cos(x * 0.12 + z * 0.18) * 1.2
-           + Math.sin(x * 1.10) * Math.cos(z * 0.90) * 0.3;
-    }
-
-    const SIZE = 20, SEG = 80;
-    const geo = new THREE.PlaneGeometry(SIZE, SIZE, SEG, SEG);
-    geo.rotateX(-Math.PI / 2);
-
-    const pos = geo.attributes.position;
-    const colorData = new Float32Array(pos.count * 3);
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i), z = pos.getZ(i);
-      pos.setY(i, terrainH(x, z));
-      const t = Math.max(0, Math.min(1, (terrainH(x, z) + 2) / 5));
-      colorData[i * 3 + 0] = 0.04 + t * 0.22;
-      colorData[i * 3 + 1] = 0.22 + t * 0.42;
-      colorData[i * 3 + 2] = 0.04 + t * 0.06;
-    }
-    geo.computeVertexNormals();
-    geo.setAttribute('color', new THREE.BufferAttribute(colorData, 3));
-
-    const terrain = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
-    terrain.receiveShadow = true;
-    scene.add(terrain);
-    scene.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-      color: 0x52b788, wireframe: true, transparent: true, opacity: 0.07,
-    })));
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
-    function castAll(group) {
-      group.traverse(o => { if (o.isMesh) o.castShadow = true; });
-    }
-
-    // Cylinder segment between two Vector3 points
-    function seg(parent, a, b, radius, mat) {
-      const dir = b.clone().sub(a);
-      const len = dir.length();
-      if (len < 0.001) return;
-      const cyl = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, len, 5), mat);
-      cyl.position.copy(a.clone().add(b).multiplyScalar(0.5));
-      cyl.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
-      parent.add(cyl);
-    }
-
-    const v3 = (x, y, z) => new THREE.Vector3(x, y, z);
-
-    // ── Radio Tower ───────────────────────────────────────────────────────────
-    function makeTower() {
-      const g = new THREE.Group();
-      const steel = new THREE.MeshLambertMaterial({ color: 0x8899aa });
-
-      const levels  = [0, 2, 4, 6, 8, 10];
-      const spreads = [1.8, 1.4, 1.0, 0.62, 0.32, 0.14];
-      const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
-
-      // Tapered legs
-      for (let i = 0; i < levels.length - 1; i++) {
-        const [y0, y1] = [levels[i], levels[i + 1]];
-        const [s0, s1] = [spreads[i], spreads[i + 1]];
-        corners.forEach(([cx, cz]) =>
-          seg(g, v3(cx * s0, y0, cz * s0), v3(cx * s1, y1, cz * s1), 0.055, steel));
-      }
-
-      // Horizontal rings at each level
-      levels.forEach((y, i) => {
-        const s = spreads[i];
-        for (let j = 0; j < 4; j++) {
-          const [cx0, cz0] = corners[j], [cx1, cz1] = corners[(j + 1) % 4];
-          seg(g, v3(cx0 * s, y, cz0 * s), v3(cx1 * s, y, cz1 * s), 0.035, steel);
-        }
-      });
-
-      // Diagonal braces between levels
-      for (let i = 0; i < levels.length - 1; i++) {
-        const [y0, y1] = [levels[i], levels[i + 1]];
-        const [s0, s1] = [spreads[i], spreads[i + 1]];
-        corners.forEach(([cx, cz], j) => {
-          const [ncx, ncz] = corners[(j + 1) % 4];
-          seg(g, v3(cx * s0, y0, cz * s0), v3(ncx * s1, y1, ncz * s1), 0.025, steel);
-        });
-      }
-
-      // Top antenna mast
-      seg(g, v3(0, 10, 0), v3(0, 13.2, 0), 0.024, steel);
-
-      // Small cross arms on antenna
-      [10.5, 11.5, 12.5].forEach(y => {
-        seg(g, v3(-0.3, y, 0), v3(0.3, y, 0), 0.018, steel);
-        seg(g, v3(0, y, -0.3), v3(0, y, 0.3), 0.018, steel);
-      });
-
-      // Blinking warning light
-      const lightMat = new THREE.MeshBasicMaterial({ color: 0xff2200 });
-      const light = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), lightMat);
-      light.position.y = 13.3;
-      g.add(light);
-      g.userData.light = light;
-
-      castAll(g);
-      return g;
-    }
-
-    // ── UAV Plane ─────────────────────────────────────────────────────────────
-    // Oriented with nose at +Z, tail at -Z. rotation.y steers direction.
-    function makePlane() {
-      const g = new THREE.Group();
-      const bodyMat = new THREE.MeshLambertMaterial({ color: 0xc8c8c0 });
-      const wingMat = new THREE.MeshLambertMaterial({ color: 0xb0b0a8 });
-      const darkMat = new THREE.MeshLambertMaterial({ color: 0x282828 });
-
-      // Fuselage — CylinderGeometry along Y, rotated to align with Z
-      const fuse = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.09, 2.2, 8), bodyMat);
-      fuse.rotation.x = Math.PI / 2;
-      g.add(fuse);
-
-      // Nose cone
-      const nose = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.45, 8), bodyMat);
-      nose.rotation.x = -Math.PI / 2;
-      nose.position.z = 1.32;
-      g.add(nose);
-
-      // Main wings
-      const mainWing = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.055, 0.52), wingMat);
-      mainWing.position.z = 0.15;
-      g.add(mainWing);
-
-      // Upturned wing tips (winglets)
-      [-1, 1].forEach(side => {
-        const tip = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.05, 0.38), wingMat);
-        tip.position.set(side * 2.17, 0.12, 0.15);
-        tip.rotation.z = side * 0.28;
-        g.add(tip);
-      });
-
-      // Horizontal stabilizers
-      const hStab = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.045, 0.28), wingMat);
-      hStab.position.z = -0.88;
-      g.add(hStab);
-
-      // Vertical fin
-      const vFin = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.42, 0.28), wingMat);
-      vFin.position.set(0, 0.21, -0.88);
-      g.add(vFin);
-
-      // Pusher engine nacelle at tail
-      const eng = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.07, 0.28, 8), darkMat);
-      eng.rotation.x = Math.PI / 2;
-      eng.position.z = -0.88;
-      g.add(eng);
-
-      // Blurred prop disc (static — already blurred looking)
-      const propMat = new THREE.MeshBasicMaterial({
-        color: 0x333333, transparent: true, opacity: 0.22, side: THREE.DoubleSide,
-      });
-      const prop = new THREE.Mesh(new THREE.CircleGeometry(0.22, 16), propMat);
-      prop.position.z = -1.03;
-      g.add(prop);
-
-      castAll(g);
-      return g;
-    }
-
-    // ── Small Drone ───────────────────────────────────────────────────────────
-    function makeDrone() {
-      const g = new THREE.Group();
-      const bodyMat  = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
-      const armMat   = new THREE.MeshLambertMaterial({ color: 0x2a2a2a });
-      const motorMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
-      const rotorMat = new THREE.MeshBasicMaterial({
-        color: 0x999999, transparent: true, opacity: 0.32, side: THREE.DoubleSide,
-      });
-
-      // Central body
-      g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.07, 8), bodyMat));
-
-      // Camera dome (bottom)
-      const dome = new THREE.Mesh(
-        new THREE.SphereGeometry(0.075, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2),
-        new THREE.MeshLambertMaterial({ color: 0x0a0a0a })
-      );
-      dome.rotation.x = Math.PI;
-      dome.position.y = -0.035;
-      g.add(dome);
-
-      const rotorGroups = [];
-      const ARM = 0.46;
-
-      [45, 135, 225, 315].forEach((deg, i) => {
-        const rad = deg * Math.PI / 180;
-        const tx = Math.cos(rad) * ARM, tz = Math.sin(rad) * ARM;
-
-        // Arm
-        const arm = new THREE.Mesh(new THREE.BoxGeometry(ARM, 0.032, 0.032), armMat);
-        arm.position.set(tx / 2, 0, tz / 2);
-        arm.rotation.y = -rad;
-        g.add(arm);
-
-        // Motor
-        const motor = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.042, 8), motorMat);
-        motor.position.set(tx, 0.024, tz);
-        g.add(motor);
-
-        // Rotor group — spin via rotorGroup.rotation.y
-        const rg = new THREE.Group();
-        rg.position.set(tx, 0.055, tz);
-        const disc = new THREE.Mesh(new THREE.CircleGeometry(0.12, 10), rotorMat);
-        disc.rotation.x = -Math.PI / 2;
-        rg.add(disc);
-        g.add(rg);
-        rotorGroups.push({ group: rg, dir: i % 2 === 0 ? 1 : -1 });
-      });
-
-      // Landing legs
-      [0, 90, 180, 270].forEach(deg => {
-        const rad = deg * Math.PI / 180;
-        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.17, 4), armMat);
-        leg.position.set(Math.cos(rad) * 0.13, -0.1, Math.sin(rad) * 0.13);
-        g.add(leg);
-      });
-
-      // Navigation LEDs
-      const redLed   = new THREE.Mesh(new THREE.SphereGeometry(0.02, 4, 4), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
-      redLed.position.set(0.12, 0.04, 0);
-      g.add(redLed);
-      const greenLed = new THREE.Mesh(new THREE.SphereGeometry(0.02, 4, 4), new THREE.MeshBasicMaterial({ color: 0x00ff44 }));
-      greenLed.position.set(-0.12, 0.04, 0);
-      g.add(greenLed);
-
-      g.userData.rotorGroups = rotorGroups;
-      castAll(g);
-      return g;
-    }
-
-    // ── Place objects ─────────────────────────────────────────────────────────
-    const tower = makeTower();
-    tower.position.set(-1, terrainH(-1, -8), -8);
-    scene.add(tower);
-
-    const plane = makePlane();
-    scene.add(plane);
-    const PLANE_R = 4.5, PLANE_Y = 7.5;
-
-    const DRONE_OX = 7, DRONE_OZ = 7;
-    const drone = makeDrone();
-    drone.position.set(DRONE_OX, terrainH(DRONE_OX, DRONE_OZ) + 2.2, DRONE_OZ);
-    scene.add(drone);
-
-    // ── Lights ────────────────────────────────────────────────────────────────
-    scene.add(new THREE.AmbientLight(0x6a8fc8, 0.9));
-    const sun = new THREE.DirectionalLight(0xffe8c0, 1.4);
-    sun.position.set(12, 20, 8);
-    sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
-    Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 16, bottom: -16, near: 0.1, far: 70 });
-    scene.add(sun);
-
-    // ── Resize ────────────────────────────────────────────────────────────────
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-
-    renderer.domElement.addEventListener('pointerdown', () => {
-      document.getElementById('hint').style.opacity = '0';
-    }, { once: true });
-
-    // ── Animate ───────────────────────────────────────────────────────────────
-    const clock = new THREE.Clock();
-    let elapsed = 0;
-
-    (function animate() {
-      requestAnimationFrame(animate);
-      elapsed += clock.getDelta();
-      const t = elapsed;
-
-      // Tower warning light blink (~1 Hz)
-      tower.userData.light.visible = Math.floor(t * 1.1) % 2 === 0;
-
-      // UAV plane circles the landscape
-      const pa = t * 0.35;
-      plane.position.set(
-        Math.cos(pa) * PLANE_R,
-        PLANE_Y + Math.sin(t * 0.6) * 0.35,
-        Math.sin(pa) * PLANE_R
-      );
-      plane.rotation.y = -pa;
-
-      // Drone hovers and drifts in a small circle
-      const da = t * 0.28;
-      const dx = DRONE_OX + Math.cos(da) * 0.5;
-      const dz = DRONE_OZ + Math.sin(da) * 0.5;
-      drone.position.set(dx, terrainH(dx, dz) + 2.2 + Math.sin(t * 2.1) * 0.13, dz);
-      drone.rotation.y = da * 0.6;
-
-      // Rotor spin (alternating directions)
-      drone.userData.rotorGroups.forEach(({ group, dir }) => {
-        group.rotation.y += dir * 0.38;
-      });
-
-      controls.update();
-      renderer.render(scene, camera);
-    })();
-
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
-    }
-  </script>
 </body>
 </html>
