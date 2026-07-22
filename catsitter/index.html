@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="no">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -33,7 +33,6 @@
       padding-bottom: calc(68px + env(safe-area-inset-bottom));
     }
 
-    /* ── Header ── */
     header {
       background: var(--accent);
       color: white;
@@ -42,10 +41,23 @@
       top: 0;
       z-index: 50;
     }
+    .header-inner { display: flex; justify-content: space-between; align-items: center; }
     header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
     header p  { font-size: 13px; opacity: 0.85; margin-top: 3px; }
+    .lang-btn {
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: 1.5px solid rgba(255,255,255,0.5);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 13px; font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      margin-left: 12px;
+    }
+    .lang-btn:active { opacity: 0.7; }
 
-    /* ── Tab bar ── */
     nav {
       position: fixed;
       bottom: 0; left: 0; right: 0;
@@ -69,11 +81,9 @@
     .tab.active { color: var(--accent); }
     .tab-icon { font-size: 22px; line-height: 1; }
 
-    /* ── Panels ── */
     .panel { display: none; padding: 16px; }
     .panel.active { display: block; }
 
-    /* ── Generic card ── */
     .card {
       background: var(--card);
       border-radius: 16px;
@@ -90,7 +100,6 @@
     }
     .section-title:first-child { margin-top: 4px; }
 
-    /* ── Notice ── */
     .notice {
       background: var(--warn-bg);
       border: 1.5px solid var(--warn-br);
@@ -100,7 +109,6 @@
       margin-bottom: 12px;
     }
 
-    /* ── Day cards ── */
     .day-header {
       display: flex; align-items: center; justify-content: space-between;
       margin-bottom: 10px;
@@ -130,7 +138,6 @@
       min-width: 36px; text-align: right;
     }
 
-    /* ── Task items ── */
     .task {
       display: flex; align-items: flex-start; gap: 12px;
       padding: 11px 0;
@@ -147,12 +154,8 @@
       transition: all 0.15s;
       margin-top: 1px;
     }
-    .task.done .check {
-      background: var(--green); border-color: var(--green);
-    }
-    .check-mark {
-      display: none; color: white; font-size: 15px; font-weight: 700;
-    }
+    .task.done .check { background: var(--green); border-color: var(--green); }
+    .check-mark { display: none; color: white; font-size: 15px; font-weight: 700; }
     .task.done .check-mark { display: block; }
     .task-body { flex: 1; }
     .task-label { font-size: 16px; line-height: 1.3; }
@@ -165,7 +168,6 @@
       padding: 8px 0 2px;
     }
 
-    /* ── Cat cards ── */
     .cat-card {
       background: var(--card);
       border-radius: 16px; overflow: hidden;
@@ -176,16 +178,11 @@
       object-fit: cover; object-position: center top;
       display: block;
     }
-    .cat-top {
-      padding: 14px 16px 10px;
-    }
+    .cat-top { padding: 14px 16px 10px; }
     .cat-name { font-size: 22px; font-weight: 700; }
     .cat-meta { font-size: 13px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
 
-    .tags {
-      display: flex; flex-wrap: wrap; gap: 6px;
-      padding: 0 16px 12px;
-    }
+    .tags { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 12px; }
     .tag {
       background: var(--accent-lt); color: var(--accent);
       font-size: 13px; font-weight: 600;
@@ -201,11 +198,8 @@
       font-size: 14px; line-height: 1.4;
       display: flex; gap: 8px; align-items: flex-start;
     }
-    .health-box {
-      background: #e8f4fd; border-color: #90caf9;
-    }
+    .health-box { background: #e8f4fd; border-color: #90caf9; }
 
-    /* ── Info panel ── */
     .info-row {
       display: flex; align-items: flex-start; gap: 14px;
       padding: 12px 0;
@@ -236,12 +230,8 @@
     }
     .call-btn:active { opacity: 0.8; }
 
-    .lock-prompt {
-      text-align: center; padding: 8px 0 4px;
-    }
-    .lock-input-row {
-      display: flex; gap: 8px; margin-top: 12px;
-    }
+    .lock-prompt { text-align: center; padding: 8px 0 4px; }
+    .lock-input-row { display: flex; gap: 8px; margin-top: 12px; }
     .lock-input-row input {
       flex: 1; padding: 11px 14px; border-radius: 10px;
       border: 1.5px solid var(--border); font-size: 16px;
@@ -257,9 +247,7 @@
     .lock-input-row button:active { opacity: 0.8; }
     .lock-msg { font-size: 13px; margin-top: 10px; min-height: 18px; }
 
-    .cal-btns {
-      display: flex; gap: 8px; margin-bottom: 12px;
-    }
+    .cal-btns { display: flex; gap: 8px; margin-bottom: 12px; }
     .cal-btn {
       flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
       padding: 9px 6px; border-radius: 10px;
@@ -274,8 +262,13 @@
 <body>
 
 <header>
-  <h1>🐱 Cat Sitter Guide</h1>
-  <p id="trip-status"></p>
+  <div class="header-inner">
+    <div>
+      <h1 id="hdr-title"></h1>
+      <p id="trip-status"></p>
+    </div>
+    <button class="lang-btn" id="lang-btn" onclick="toggleLang()"></button>
+  </div>
 </header>
 
 <div id="panel-tasks"  class="panel active"></div>
@@ -285,180 +278,296 @@
 
 <nav>
   <button class="tab active" onclick="switchTab('tasks',this)">
-    <span class="tab-icon">📋</span>Cat sitting
+    <span class="tab-icon">📋</span><span data-key="tabTasks"></span>
   </button>
   <button class="tab" onclick="switchTab('cats',this)">
-    <span class="tab-icon">🐱</span>Cats
+    <span class="tab-icon">🐱</span><span data-key="tabCats"></span>
   </button>
   <button class="tab" onclick="switchTab('info',this)">
-    <span class="tab-icon">🏠</span>Home
+    <span class="tab-icon">🏠</span><span data-key="tabHome"></span>
   </button>
   <button class="tab" onclick="switchTab('coffee',this)">
-    <span class="tab-icon">☕</span>Coffee
+    <span class="tab-icon">☕</span><span data-key="tabCoffee"></span>
   </button>
 </nav>
 
 <script>
-const VISIT_DAYS = [
-  { date: '2026-06-11', label: 'Thursday · June 11' },
-  { date: '2026-06-12', label: 'Friday · June 12' },
-  { date: '2026-06-13', label: 'Saturday · June 13' },
-];
+// ── i18n ───────────────────────────────────────────────────────────────────
+let lang = 'no';
 
-const TASKS = [
-  { id: 'feed',    icon: '🍽️', label: 'Refill chip-controlled feeders', sub: 'Dry food + wet food for all three cats' },
-  { id: 'water',   icon: '💧', label: 'Top up fresh water',             sub: 'Check all water bowls' },
-  { id: 'litter2', icon: '🧹', label: 'Scoop litter box — 2nd floor',  sub: '' },
-  { id: 'litter3', icon: '🧹', label: 'Scoop litter box — 3rd floor',  sub: '' },
-  { id: 'cuddle',  icon: '🤍', label: 'Quality time with the cats',    sub: 'They love cuddles!' },
-];
+const STRINGS = {
+  no: {
+    title: '🐱 Kattepasser-guide',
+    statusBefore: 'Eierne reiser 25. jul · Returnerer 28. jul',
+    statusDuring: 'Takk for at du tar vare på dem! 🙏',
+    statusAfter:  'Eierne er tilbake 28. jul — takk! 🙏',
+    tabTasks: 'Kattepasser', tabCats: 'Katter', tabHome: 'Hjem', tabCoffee: 'Kaffe',
+    langBtn: 'English',
+    sectionTrip: 'Reisedatoer',
+    lblLeave: 'Eierne reiser',    valLeave: 'Lørdag, 25. juli kl. 13:55',
+    lblReturn: 'Eierne returnerer', valReturn: 'Tirsdag, 28. juli kl. 21:25',
+    lblVisitDays: 'Dine besøksdager',
+    visitDay1: 'Søn 26. juli', visitDay2: 'Man 27. juli', visitDay3: 'Tir 28. juli',
+    calHint: 'Legg til alle besøksdager i kalenderen',
+    btnGoogle: '📅 Google Kalender', btnApple: '🍎 Apple Kalender',
+    departureDay: '⚠️ <strong>Avreisedag:</strong> Eierne reiser kl. 13:55. Ditt første besøk er i morgen, søndag 26. juli.',
+    dayLabels: ['Søndag · 26. juli', 'Mandag · 27. juli', 'Tirsdag · 28. juli'],
+    todayBadge: 'I DAG',
+    taskData: [
+      { icon: '🍽️', label: 'Fyll opp chip-kontrollerte matere', sub: 'Tørrfôr + våtfôr til alle tre kattene' },
+      { icon: '💧', label: 'Fyll på ferskt vann',               sub: 'Sjekk alle vannboller' },
+      { icon: '🧹', label: 'Tøm kattetoalett — 2. etasje',      sub: '' },
+      { icon: '🧹', label: 'Tøm kattetoalett — 3. etasje',      sub: '' },
+      { icon: '🤍', label: 'Kvalitetstid med kattene',          sub: 'De elsker kos!' },
+    ],
+    allDone: '✅ Alt ferdig — super jobbet!',
+    doorWarning: '⚠️ <strong>Advarsel:</strong> Alle tre kattene elsker uteliv. Sjekk alltid bak deg før du åpner inngangsdøren eller terrassedøren.',
+    catMeta: [
+      'Hann · Eldste · Neva Masquerade',
+      'Hunn · Mamma til Kiara · Neva Masquerade',
+      'Hunn · Datter av Evi · Neva Masquerade',
+    ],
+    catTraits: [
+      ['Lodden', 'Snill', 'Kuffern', 'Liker rumpedask'],
+      ['Lodden', 'Sur', 'Kuffern', 'Litt sky i det siste'],
+      ['Lodden', 'Rar', 'Ikke så kuffern', 'Enorm FOMO'],
+    ],
+    catWarnings: [
+      ['Elsker uteliv — vær veldig forsiktig når du åpner dører!'],
+      ['Elsker uteliv — vær veldig forsiktig når du åpner dører!'],
+      ['Vil følge de to andre kattene overalt — pass på alle tre ved dørene!'],
+    ],
+    catHealth: 'Astma',
+    sectionDoor: 'Døraksess',
+    lockHint: 'Skriv inn telefonnummeret ditt for å låse opp koden',
+    phonePlaceholder: 'xxxxxxxx',
+    btnUnlock: 'Lås opp',
+    lockError: 'Telefonnummeret ble ikke gjenkjent.',
+    lblCode: 'Tastaturkode', lblEntry: 'Inngangspunkter',
+    valFront: 'Inngangsdør', valTerrace: 'Terrassedør',
+    captTerrace: 'Terrassedør — Yale tastaturlås',
+    sectionContact: 'Kontakt', lblOwners: 'Eiere',
+    sectionEmergency: 'Nødstilfelle',
+    lblHospital: 'Nærmeste dyresykehus', btnMaps: '🗺️ Åpne i Kart',
+    sectionNotes: 'Hurtignotat',
+    lblFeeders: 'Matere', valFeeders: 'Chip-kontrollert — åpnes automatisk per katt',
+    captFeederBtn: 'Trykk på knappen for å åpne lokket, legg i mat, trykk igjen for å lukke',
+    lblDryFood: 'Tørrfôr', valDryFood: 'To glasskrukker på kjøkkenbenken',
+    captDryFood: 'Tørrfôr — glasskrukker med trelokk',
+    lblWetFood: 'Våtfôr', valWetFood: 'Kjøkkenskuff — bokser, poser og brett',
+    captWetFood: 'Våtfôr — kjøkkenskuff',
+    lblUtensils: 'Redskaper',
+    valUtensils: 'Skjult skuff i samme område som våtfôret — dra den ut for å finne bestikk',
+    captUtensilDrawer: 'Den skjulte skuffen — dra for å åpne',
+    captUtensilInside: 'Bestikk inni',
+    lblWater: 'Vann', valWater: 'Fyll på ferskt vann ved hvert besøk',
+    lblLitter: 'Kattetoaletter',
+    valLitter: 'To bokser — 3. etasje og 2. etasje (kontor). Tips: start på 3. etasje og ta med en ekstra pose ned',
+    captLitter3f: '3. etasje — sort boks, løft lokket for tilgang. Skuffe og pose ved siden av',
+    captLitterScooper: 'Skuffe og pose ved 3. etasje-boksen',
+    captLitter2f: '2. etasje (kontor) — hvit boks, skuffe bak',
+    sectionMachine: 'Maskinen', captMachine: 'SMEG BCC13 Bean to Cup',
+    lblPower: 'Strøm', valPower: 'Knapp på siden',
+    lblModes: 'Modi', valModes: 'Knapp i midten — sykler gjennom Espresso, Kaffe, Lang kaffe, Americano, Varmt vann',
+    lblManual: 'Manual og bønner', valManual: 'Instruksjonsmanual og kaffebønner er i skapet over maskinen',
+    sectionGuide: 'Hurtigstartsguide', captGuide: 'SMEG hurtigstartsguide — også i skapet over',
+  },
+  en: {
+    title: '🐱 Cat Sitter Guide',
+    statusBefore: 'Owners leave Jul 25 · Return Jul 28',
+    statusDuring: 'Thank you for taking care of them! 🙏',
+    statusAfter:  'Owners return Jul 28 — thank you! 🙏',
+    tabTasks: 'Cat sitting', tabCats: 'Cats', tabHome: 'Home', tabCoffee: 'Coffee',
+    langBtn: 'Norsk',
+    sectionTrip: 'Trip dates',
+    lblLeave: 'Owners leave',    valLeave: 'Saturday, July 25 at 13:55',
+    lblReturn: 'Owners return',  valReturn: 'Tuesday, July 28 at 21:25',
+    lblVisitDays: 'Your visit days',
+    visitDay1: 'Sun July 26', visitDay2: 'Mon July 27', visitDay3: 'Tue July 28',
+    calHint: 'Add all visit days to your calendar',
+    btnGoogle: '📅 Google Calendar', btnApple: '🍎 Apple Calendar',
+    departureDay: '⚠️ <strong>Departure day:</strong> The owners leave at 13:55. Your first visit is tomorrow, Sunday July 26.',
+    dayLabels: ['Sunday · July 26', 'Monday · July 27', 'Tuesday · July 28'],
+    todayBadge: 'TODAY',
+    taskData: [
+      { icon: '🍽️', label: 'Refill chip-controlled feeders', sub: 'Dry food + wet food for all three cats' },
+      { icon: '💧', label: 'Top up fresh water',             sub: 'Check all water bowls' },
+      { icon: '🧹', label: 'Scoop litter box — 2nd floor',  sub: '' },
+      { icon: '🧹', label: 'Scoop litter box — 3rd floor',  sub: '' },
+      { icon: '🤍', label: 'Quality time with the cats',    sub: 'They love cuddles!' },
+    ],
+    allDone: '✅ All done — great job!',
+    doorWarning: '⚠️ <strong>Door warning:</strong> All three cats love the outdoors. Always check behind you before opening the front door or the terrace door.',
+    catMeta: [
+      'Male · Oldest · Neva Masquerade',
+      'Female · Mum of Kiara · Neva Masquerade',
+      'Female · Daughter of Evi · Neva Masquerade',
+    ],
+    catTraits: [
+      ['Fluffy', 'Nice', 'Cuddly', 'Likes butt slaps'],
+      ['Fluffy', 'Grumpy', 'Cuddly', 'A bit skittish lately'],
+      ['Fluffy', 'Weird', 'Not so cuddly', 'Massive FOMO'],
+    ],
+    catWarnings: [
+      ['Loves the outdoors — be very careful when opening any doors!'],
+      ['Loves the outdoors — be very careful when opening any doors!'],
+      ['Will follow the other two cats wherever they go — watch all three at once near doors!'],
+    ],
+    catHealth: 'Asthma',
+    sectionDoor: 'Door access',
+    lockHint: 'Enter your phone number to unlock the door code',
+    phonePlaceholder: 'xxxxxxxx',
+    btnUnlock: 'Unlock',
+    lockError: 'Phone number not recognised.',
+    lblCode: 'Keypad code', lblEntry: 'Entry points',
+    valFront: 'Front door', valTerrace: 'Terrace door',
+    captTerrace: 'Terrace door — Yale keypad lock',
+    sectionContact: 'Contact', lblOwners: 'Owners',
+    sectionEmergency: 'Emergency',
+    lblHospital: 'Nearest animal hospital', btnMaps: '🗺️ Open in Maps',
+    sectionNotes: 'Quick notes',
+    lblFeeders: 'Feeders', valFeeders: 'Chip-controlled — auto-opens per cat',
+    captFeederBtn: 'Press this button to open the lid, add food, then press again to close',
+    lblDryFood: 'Dry food', valDryFood: 'Two glass jars on the kitchen counter',
+    captDryFood: 'Dry food — glass jars with wooden lids',
+    lblWetFood: 'Wet food', valWetFood: 'Kitchen drawer — cans, pouches & trays',
+    captWetFood: 'Wet food — kitchen drawer',
+    lblUtensils: 'Utensils',
+    valUtensils: 'Hidden drawer in the same area as the wet food — pull it open to find cutlery',
+    captUtensilDrawer: 'The hidden drawer — pull to open',
+    captUtensilInside: 'Cutlery inside',
+    lblWater: 'Water', valWater: 'Top up fresh water each visit',
+    lblLitter: 'Litter boxes',
+    valLitter: 'Two boxes — 3rd floor and 2nd floor (office). Tip: start at 3rd floor and bring an extra bag down with you',
+    captLitter3f: '3rd floor — black box, lift lid to access. Scooper and bag beside it',
+    captLitterScooper: 'Scooper and bag next to the 3rd floor box',
+    captLitter2f: '2nd floor (office) — white box, scooper behind it',
+    sectionMachine: 'The machine', captMachine: 'SMEG BCC13 Bean to Cup',
+    lblPower: 'Power', valPower: 'Button on the side',
+    lblModes: 'Modes', valModes: 'Button in the middle — cycles through Espresso, Coffee, Long Coffee, Americano, Hot Water',
+    lblManual: 'Manual & beans', valManual: 'Instruction manual and coffee beans are in the cupboard above the machine',
+    sectionGuide: 'Quick start guide', captGuide: 'SMEG quick start guide — also in the cupboard above',
+  },
+};
 
-const CATS = [
-  {
-    name: 'Ruski', photo: 'cat-ruski.jpg',
-    meta: 'Male · Oldest · Neva Masquerade',
-    traits: ['Fluffy', 'Nice', 'Cuddly', 'Likes butt slaps'],
-    warnings: ['Loves the outdoors — be very careful when opening any doors!'],
-  },
-  {
-    name: 'Evi', photo: 'cat-evi.jpg',
-    meta: 'Female · Mum of Kiara · Neva Masquerade',
-    traits: ['Fluffy', 'Grumpy', 'Cuddly', 'A bit skittish lately'],
-    warnings: ['Loves the outdoors — be very careful when opening any doors!'],
-    health: ['Asthma'],
-  },
-  {
-    name: 'Kiara', photo: 'cat-kiara.jpg', photoPos: 'center bottom',
-    meta: 'Female · Daughter of Evi · Neva Masquerade',
-    traits: ['Fluffy', 'Weird', 'Not so cuddly', 'Massive FOMO'],
-    warnings: ['Will follow the other two cats wherever they go — watch all three at once near doors!'],
-    health: ['Asthma'],
-  },
-];
+function t(k) { return STRINGS[lang][k]; }
 
 // ── Storage ────────────────────────────────────────────────────────────────
-const DB   = 'https://catsitter-b7668-default-rtdb.europe-west1.firebasedatabase.app';
-const _fc  = {};
-const key  = (d, id) => `cs_${d}_${id}`;
-const get  = (d, id) => !!_fc[key(d, id)];
+const DB  = 'https://catsitter-b7668-default-rtdb.europe-west1.firebasedatabase.app';
+const _fc = {};
+const dbKey = (d, id) => `cs_${d}_${id}`;
+const get   = (d, id) => !!_fc[dbKey(d, id)];
 function set(d, id, v) {
-  _fc[key(d, id)] = v;
-  fetch(`${DB}/tasks/${key(d, id)}.json`, {
+  _fc[dbKey(d, id)] = v;
+  fetch(`${DB}/tasks/${dbKey(d, id)}.json`, {
     method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(v)
   }).catch(() => {});
 }
 
-// ── Today ──────────────────────────────────────────────────────────────────
+const TASK_IDS       = ['feed', 'water', 'litter2', 'litter3', 'cuddle'];
+const VISIT_DATES    = ['2026-07-26', '2026-07-27', '2026-07-28'];
+const CAT_NAMES      = ['Ruski', 'Evi', 'Kiara'];
+const CAT_PHOTOS     = ['cat-ruski.jpg', 'cat-evi.jpg', 'cat-kiara.jpg'];
+const CAT_PHOTO_POS  = [null, null, 'center bottom'];
+const CAT_HAS_HEALTH = [false, true, true];
+
 const today = new Date().toISOString().slice(0, 10);
 
-const statusEl = document.getElementById('trip-status');
-if      (today < '2026-06-11') statusEl.textContent = 'Owners leave Jun 10 · Return Jun 14';
-else if (today > '2026-06-13') statusEl.textContent = 'Owners return Jun 14 — thank you! 🙏';
-else                           statusEl.textContent  = 'Thank you for taking care of them! 🙏';
-
-// ── Calendar ───────────────────────────────────────────────────────────────
+// ── Calendar helpers ───────────────────────────────────────────────────────
 function dateStamp(date) { return date.replace(/-/g, ''); }
 function nextDay(date) {
   const d = new Date(date); d.setDate(d.getDate() + 1);
   return d.toISOString().slice(0, 10).replace(/-/g, '');
 }
-function gcalUrl(date) {
-  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=Cat+Sitter+Visit&dates=${dateStamp(date)}/${nextDay(date)}&details=Look+after+Ruski%2C+Evi+%26+Kiara`;
-}
-function addToAppleCal(date) {
+function addRangeToAppleCal() {
   const ics = [
-    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Cat Sitter//EN',
-    'BEGIN:VEVENT',
-    `DTSTART;VALUE=DATE:${dateStamp(date)}`,
-    `DTEND;VALUE=DATE:${nextDay(date)}`,
-    'SUMMARY:Cat Sitter Visit',
-    'DESCRIPTION:Look after Ruski\\, Evi & Kiara',
-    'END:VEVENT', 'END:VCALENDAR'
+    'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Cat Sitter//EN','BEGIN:VEVENT',
+    'DTSTART;VALUE=DATE:20260726','DTEND;VALUE=DATE:20260729',
+    'SUMMARY:Cat Sitter Visit','DESCRIPTION:Look after Ruski\\, Evi & Kiara',
+    'END:VEVENT','END:VCALENDAR'
   ].join('\r\n');
   const a = Object.assign(document.createElement('a'), {
     href: URL.createObjectURL(new Blob([ics], {type: 'text/calendar'})),
-    download: `cat-sitter-${date}.ics`
+    download: 'cat-sitter-jul26-28.ics'
   });
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-function addRangeToAppleCal() {
-  const ics = [
-    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Cat Sitter//EN',
-    'BEGIN:VEVENT',
-    'DTSTART;VALUE=DATE:20260611',
-    'DTEND;VALUE=DATE:20260614',
-    'SUMMARY:Cat Sitter Visit',
-    'DESCRIPTION:Look after Ruski\\, Evi & Kiara',
-    'END:VEVENT', 'END:VCALENDAR'
-  ].join('\r\n');
-  const a = Object.assign(document.createElement('a'), {
-    href: URL.createObjectURL(new Blob([ics], {type: 'text/calendar'})),
-    download: 'cat-sitter-jun11-13.ics'
+// ── Header ─────────────────────────────────────────────────────────────────
+function updateHeader() {
+  document.documentElement.lang = lang;
+  document.getElementById('hdr-title').textContent = t('title');
+  document.getElementById('lang-btn').textContent  = t('langBtn');
+  const statusEl = document.getElementById('trip-status');
+  if      (today < '2026-07-26') statusEl.textContent = t('statusBefore');
+  else if (today > '2026-07-28') statusEl.textContent = t('statusAfter');
+  else                           statusEl.textContent  = t('statusDuring');
+  document.querySelectorAll('[data-key]').forEach(el => {
+    el.textContent = t(el.dataset.key);
   });
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 // ── Tasks ──────────────────────────────────────────────────────────────────
 function renderTasks() {
   const p = document.getElementById('panel-tasks');
+  p.innerHTML = '';
+  const taskData  = t('taskData');
+  const dayLabels = t('dayLabels');
 
   p.insertAdjacentHTML('beforeend', `
-    <div class="section-title" style="margin-top:4px">Trip dates</div>
+    <div class="section-title" style="margin-top:4px">${t('sectionTrip')}</div>
     <div class="card">
       <div class="info-row">
         <span class="info-icon">✈️</span>
-        <div><div class="info-lbl">Owners leave</div><div class="info-val">Wednesday, June 10</div></div>
+        <div><div class="info-lbl">${t('lblLeave')}</div><div class="info-val">${t('valLeave')}</div></div>
       </div>
       <div class="info-row">
         <span class="info-icon">🏡</span>
-        <div><div class="info-lbl">Owners return</div><div class="info-val">Sunday, June 14</div></div>
+        <div><div class="info-lbl">${t('lblReturn')}</div><div class="info-val">${t('valReturn')}</div></div>
       </div>
       <div class="info-row">
         <span class="info-icon">📅</span>
         <div>
-          <div class="info-lbl">Your visit days</div>
-          <div class="info-val">Thu June 11</div>
-          <div class="info-val">Fri June 12</div>
-          <div class="info-val">Sat June 13</div>
+          <div class="info-lbl">${t('lblVisitDays')}</div>
+          <div class="info-val">${t('visitDay1')}</div>
+          <div class="info-val">${t('visitDay2')}</div>
+          <div class="info-val">${t('visitDay3')}</div>
         </div>
       </div>
     </div>
     <div class="card" style="text-align:center">
-      <div style="font-size:13px;color:var(--muted);margin-bottom:10px">Add all visit days to your calendar</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:10px">${t('calHint')}</div>
       <div class="cal-btns">
-        <a class="cal-btn cal-btn-google" href="https://calendar.google.com/calendar/render?action=TEMPLATE&text=Cat+Sitter+Visit&dates=20260611/20260614&details=Look+after+Ruski%2C+Evi+%26+Kiara" target="_blank" rel="noopener">📅 Google Calendar</a>
-        <button class="cal-btn cal-btn-apple" onclick="addRangeToAppleCal()">🍎 Apple Calendar</button>
+        <a class="cal-btn cal-btn-google" href="https://calendar.google.com/calendar/render?action=TEMPLATE&text=Cat+Sitter+Visit&dates=20260726/20260729&details=Look+after+Ruski%2C+Evi+%26+Kiara" target="_blank" rel="noopener">${t('btnGoogle')}</a>
+        <button class="cal-btn cal-btn-apple" onclick="addRangeToAppleCal()">${t('btnApple')}</button>
       </div>
     </div>`);
 
-  if (today === '2026-06-10') {
-    p.insertAdjacentHTML('beforeend',
-      `<div class="notice">⚠️ <strong>Departure day:</strong> The owners will leave extra food and fresh water before they go. Your first visit is tomorrow, Thursday June 11.</div>`);
+  if (today === '2026-07-25') {
+    p.insertAdjacentHTML('beforeend', `<div class="notice">${t('departureDay')}</div>`);
   }
 
-  VISIT_DAYS.forEach(({ date, label }) => {
+  VISIT_DATES.forEach((date, i) => {
     const isToday = date === today;
     const card = document.createElement('div');
     card.id = `day-${date}`;
     card.className = 'card';
     card.innerHTML = `
       <div class="day-header">
-        <span class="day-name">${label}</span>
-        ${isToday ? '<span class="today-badge">TODAY</span>' : ''}
+        <span class="day-name">${dayLabels[i]}</span>
+        ${isToday ? `<span class="today-badge">${t('todayBadge')}</span>` : ''}
       </div>
       <div class="progress-row">
         <div class="prog-bar"><div class="prog-fill" id="fill-${date}"></div></div>
         <span class="prog-label" id="plbl-${date}"></span>
       </div>
-      ${TASKS.map(t => `
-        <div class="task${get(date,t.id)?' done':''}" id="t-${date}-${t.id}" onclick="toggle('${date}','${t.id}')">
+      ${taskData.map((task, j) => `
+        <div class="task${get(date, TASK_IDS[j]) ? ' done' : ''}" id="t-${date}-${TASK_IDS[j]}" onclick="toggle('${date}','${TASK_IDS[j]}')">
           <div class="check"><span class="check-mark">✓</span></div>
           <div class="task-body">
-            <div class="task-label">${t.icon} ${t.label}</div>
-            ${t.sub ? `<div class="task-sub">${t.sub}</div>` : ''}
+            <div class="task-label">${task.icon} ${task.label}</div>
+            ${task.sub ? `<div class="task-sub">${task.sub}</div>` : ''}
           </div>
         </div>`).join('')}
     `;
@@ -474,20 +583,18 @@ function toggle(date, id) {
 }
 
 function refreshProgress(date) {
-  const done = TASKS.filter(t => get(date, t.id)).length;
-  const total = TASKS.length;
-  const pct = Math.round(done / total * 100);
+  const done     = TASK_IDS.filter(id => get(date, id)).length;
+  const total    = TASK_IDS.length;
+  const pct      = Math.round(done / total * 100);
   const complete = done === total;
-
-  const fill = document.getElementById(`fill-${date}`);
+  const fill     = document.getElementById(`fill-${date}`);
   fill.style.width = pct + '%';
   fill.classList.toggle('complete', complete);
   document.getElementById(`plbl-${date}`).textContent = `${done}/${total}`;
-
-  const card = document.getElementById(`day-${date}`);
+  const card     = document.getElementById(`day-${date}`);
   const existing = card.querySelector('.all-done-msg');
   if (complete && !existing) {
-    card.insertAdjacentHTML('beforeend', `<div class="all-done-msg">✅ All done — great job!</div>`);
+    card.insertAdjacentHTML('beforeend', `<div class="all-done-msg">${t('allDone')}</div>`);
   } else if (!complete && existing) {
     existing.remove();
   }
@@ -496,21 +603,24 @@ function refreshProgress(date) {
 // ── Cats ───────────────────────────────────────────────────────────────────
 function renderCats() {
   const p = document.getElementById('panel-cats');
-  p.insertAdjacentHTML('beforeend',
-    `<div class="notice">⚠️ <strong>Door warning:</strong> All three cats love the outdoors. Always check behind you before opening the front door or the terrace door.</div>`);
-
-  CATS.forEach(c => {
+  p.innerHTML = '';
+  p.insertAdjacentHTML('beforeend', `<div class="notice">${t('doorWarning')}</div>`);
+  const catMeta     = t('catMeta');
+  const catTraits   = t('catTraits');
+  const catWarnings = t('catWarnings');
+  const catHealth   = t('catHealth');
+  CAT_NAMES.forEach((name, i) => {
     const el = document.createElement('div');
     el.className = 'cat-card';
     el.innerHTML = `
-      <img src="${c.photo}" alt="${c.name}" class="cat-photo"${c.photoPos ? ` style="object-position:${c.photoPos}"` : ''}>
+      <img src="${CAT_PHOTOS[i]}" alt="${name}" class="cat-photo"${CAT_PHOTO_POS[i] ? ` style="object-position:${CAT_PHOTO_POS[i]}"` : ''}>
       <div class="cat-top">
-        <div class="cat-name">${c.name}</div>
-        <div class="cat-meta">${c.meta}</div>
+        <div class="cat-name">${name}</div>
+        <div class="cat-meta">${catMeta[i]}</div>
       </div>
-      <div class="tags">${c.traits.map(t => `<span class="tag">${t}</span>`).join('')}</div>
-      ${c.health ? c.health.map(h => `<div class="warn-box health-box">🩺 <span>${h}</span></div>`).join('') : ''}
-      ${c.warnings.map(w => `<div class="warn-box">⚠️ <span>${w}</span></div>`).join('')}
+      <div class="tags">${catTraits[i].map(tr => `<span class="tag">${tr}</span>`).join('')}</div>
+      ${CAT_HAS_HEALTH[i] ? `<div class="warn-box health-box">🩺 <span>${catHealth}</span></div>` : ''}
+      ${catWarnings[i].map(w => `<div class="warn-box">⚠️ <span>${w}</span></div>`).join('')}
     `;
     p.appendChild(el);
   });
@@ -518,7 +628,10 @@ function renderCats() {
 
 // ── Door code unlock ───────────────────────────────────────────────────────
 const _S = 'c83e0f8bc0d2b25f3b2a9e602a69550a';
-const _A = ['0162a975a6d9d6cbe4402230673f0d03ee925ca8cb8a4241caa21b25e1f521f3'];
+const _A = [
+  '0162a975a6d9d6cbe4402230673f0d03ee925ca8cb8a4241caa21b25e1f521f3',
+  'b435eaa8cee8eea8cc604abe0018573ec14acbf050ac323a0a0214ea7fd0633b',
+];
 const _E = '06158e28e214';
 async function _h(s) {
   const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
@@ -531,22 +644,22 @@ async function tryUnlock() {
   if (!num) return;
   const hash = await _h(num + _S);
   if (_A.includes(hash)) {
-    const saltBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(_S));
+    const saltBuf   = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(_S));
     const saltBytes = new Uint8Array(saltBuf);
     const code = _E.match(/.{2}/g).map((h,i) => String.fromCharCode(parseInt(h,16) ^ saltBytes[i])).join('');
     document.getElementById('code-display').textContent = code;
-    document.getElementById('code-locked').style.display  = 'none';
+    document.getElementById('code-locked').style.display   = 'none';
     document.getElementById('code-revealed').style.display = 'block';
   } else {
     msg.style.color = '#e65100';
-    msg.textContent = 'Phone number not recognised.';
+    msg.textContent = t('lockError');
   }
 }
 
 // ── Info ───────────────────────────────────────────────────────────────────
 function renderInfo() {
   document.getElementById('panel-info').innerHTML = `
-    <div class="section-title">Door access</div>
+    <div class="section-title">${t('sectionDoor')}</div>
     <div class="card">
       <div class="info-row" style="align-items:flex-start">
         <span class="info-icon">🔑</span>
@@ -554,16 +667,16 @@ function renderInfo() {
           <div id="code-locked">
             <div class="lock-prompt">
               <span style="font-size:32px">🔒</span>
-              <div class="info-lbl" style="margin-top:6px">Enter your phone number to unlock the door code</div>
+              <div class="info-lbl" style="margin-top:6px">${t('lockHint')}</div>
               <div class="lock-input-row">
-                <input type="tel" id="phone-input" placeholder="xxxxxxxx" inputmode="numeric" onkeydown="if(event.key==='Enter')tryUnlock()">
-                <button onclick="tryUnlock()">Unlock</button>
+                <input type="tel" id="phone-input" placeholder="${t('phonePlaceholder')}" inputmode="numeric" onkeydown="if(event.key==='Enter')tryUnlock()">
+                <button onclick="tryUnlock()">${t('btnUnlock')}</button>
               </div>
               <div id="lock-msg" class="lock-msg"></div>
             </div>
           </div>
           <div id="code-revealed" style="display:none">
-            <div class="info-lbl">Keypad code</div>
+            <div class="info-lbl">${t('lblCode')}</div>
             <div class="code-val" id="code-display"></div>
           </div>
         </div>
@@ -571,38 +684,42 @@ function renderInfo() {
       <div class="info-row">
         <span class="info-icon">🚪</span>
         <div>
-          <div class="info-lbl">Entry points</div>
-          <div class="info-val">Front door</div>
-          <div class="info-val">Terrace door</div>
+          <div class="info-lbl">${t('lblEntry')}</div>
+          <div class="info-val">${t('valFront')}</div>
+          <div class="info-val">${t('valTerrace')}</div>
         </div>
       </div>
       <img src="terrace-door.jpg" alt="Terrace door keypad" class="door-photo">
-      <p class="door-photo-caption">Terrace door — Yale keypad lock</p>
+      <p class="door-photo-caption">${t('captTerrace')}</p>
     </div>
 
-    <div class="section-title">Contact</div>
+    <div class="section-title">${t('sectionContact')}</div>
     <div class="card">
       <div class="info-row">
         <span class="info-icon">📞</span>
-        <div><div class="info-lbl">Owners</div><div class="info-val">+47 93 26 69 96 · +47 98 03 33 56</div></div>
+        <div>
+          <div class="info-lbl">${t('lblOwners')}</div>
+          <div class="info-val">+47 93 26 69 96 · +47 98 03 33 56 · +47 41 51 28 52</div>
+        </div>
       </div>
       <a class="call-btn" href="tel:+4793266996">📞 &nbsp;+47 93 26 69 96</a>
       <a class="call-btn" href="tel:+4798033356" style="margin-top:8px">📞 &nbsp;+47 98 03 33 56</a>
+      <a class="call-btn" href="tel:+4741512852" style="margin-top:8px">📞 &nbsp;+47 41 51 28 52</a>
     </div>
 
-    <div class="section-title">Emergency</div>
+    <div class="section-title">${t('sectionEmergency')}</div>
     <div class="card">
       <div class="info-row">
         <span class="info-icon">🏥</span>
         <div>
-          <div class="info-lbl">Nearest animal hospital</div>
+          <div class="info-lbl">${t('lblHospital')}</div>
           <div class="info-val">AniCura Dyresykehus Oslo</div>
         </div>
       </div>
       <div style="padding: 0 16px 12px; display:flex; flex-direction:column; gap:10px;">
         <a href="https://maps.app.goo.gl/aCrAUZywuhHzbcM68?g_st=ic" target="_blank" rel="noopener"
            style="display:flex; align-items:center; gap:8px; background:#f0f7f0; border:1.5px solid #81c784; border-radius:10px; padding:12px; text-decoration:none; color:inherit; font-size:15px; font-weight:600;">
-          🗺️ Open in Maps
+          ${t('btnMaps')}
         </a>
         <a href="tel:+4721525300"
            style="display:flex; align-items:center; gap:8px; background:#f0f7ff; border:1.5px solid #90caf9; border-radius:10px; padding:12px; text-decoration:none; color:inherit; font-size:15px; font-weight:600;">
@@ -611,117 +728,100 @@ function renderInfo() {
       </div>
     </div>
 
-    <div class="section-title">Quick notes</div>
+    <div class="section-title">${t('sectionNotes')}</div>
     <div class="card">
       <div class="info-row">
         <span class="info-icon">🍽️</span>
-        <div>
-          <div class="info-lbl">Feeders</div>
-          <div class="info-val">Chip-controlled — auto-opens per cat</div>
-        </div>
+        <div><div class="info-lbl">${t('lblFeeders')}</div><div class="info-val">${t('valFeeders')}</div></div>
       </div>
       <img src="feeder-button.jpg" alt="Feeder button" class="door-photo">
-      <p class="door-photo-caption">Press this button to open the lid, add food, then press again to close</p>
+      <p class="door-photo-caption">${t('captFeederBtn')}</p>
       <div class="info-row">
         <span class="info-icon">🫙</span>
-        <div>
-          <div class="info-lbl">Dry food</div>
-          <div class="info-val">Two glass jars on the kitchen counter</div>
-        </div>
+        <div><div class="info-lbl">${t('lblDryFood')}</div><div class="info-val">${t('valDryFood')}</div></div>
       </div>
       <img src="dry-food.jpg" alt="Dry food containers" class="door-photo">
-      <p class="door-photo-caption">Dry food — glass jars with wooden lids</p>
+      <p class="door-photo-caption">${t('captDryFood')}</p>
       <div class="info-row">
         <span class="info-icon">🥫</span>
-        <div>
-          <div class="info-lbl">Wet food</div>
-          <div class="info-val">Kitchen drawer — cans, pouches & trays</div>
-        </div>
+        <div><div class="info-lbl">${t('lblWetFood')}</div><div class="info-val">${t('valWetFood')}</div></div>
       </div>
       <img src="wet-food.jpg" alt="Wet food drawer" class="door-photo">
-      <p class="door-photo-caption">Wet food — kitchen drawer</p>
+      <p class="door-photo-caption">${t('captWetFood')}</p>
       <div class="info-row">
         <span class="info-icon">🍴</span>
-        <div>
-          <div class="info-lbl">Utensils</div>
-          <div class="info-val">Hidden drawer in the same area as the wet food — pull it open to find cutlery</div>
-        </div>
+        <div><div class="info-lbl">${t('lblUtensils')}</div><div class="info-val">${t('valUtensils')}</div></div>
       </div>
       <img src="utensil-drawer-hidden.jpg" alt="Hidden utensil drawer" class="door-photo">
-      <p class="door-photo-caption">The hidden drawer — pull to open</p>
+      <p class="door-photo-caption">${t('captUtensilDrawer')}</p>
       <img src="utensil-drawer-inside.jpg" alt="Utensils inside drawer" class="door-photo">
-      <p class="door-photo-caption">Cutlery inside</p>
+      <p class="door-photo-caption">${t('captUtensilInside')}</p>
       <div class="info-row">
         <span class="info-icon">💧</span>
-        <div>
-          <div class="info-lbl">Water</div>
-          <div class="info-val">Top up fresh water each visit</div>
-        </div>
+        <div><div class="info-lbl">${t('lblWater')}</div><div class="info-val">${t('valWater')}</div></div>
       </div>
       <div class="info-row">
         <span class="info-icon">🪣</span>
-        <div>
-          <div class="info-lbl">Litter boxes</div>
-          <div class="info-val">Two boxes — 3rd floor and 2nd floor (office). Tip: start at 3rd floor and bring an extra bag down with you</div>
-        </div>
+        <div><div class="info-lbl">${t('lblLitter')}</div><div class="info-val">${t('valLitter')}</div></div>
       </div>
       <img src="litterbox.jpg" alt="Litter box 3rd floor" class="door-photo">
-      <p class="door-photo-caption">3rd floor — black box, lift lid to access. Scooper and bag beside it</p>
+      <p class="door-photo-caption">${t('captLitter3f')}</p>
       <img src="litterbox-scooper.jpg" alt="Scooper and bag" class="door-photo">
-      <p class="door-photo-caption">Scooper and bag next to the 3rd floor box</p>
+      <p class="door-photo-caption">${t('captLitterScooper')}</p>
       <img src="litterbox-2f.jpg" alt="Litter box 2nd floor" class="door-photo">
-      <p class="door-photo-caption">2nd floor (office) — white box, scooper behind it</p>
+      <p class="door-photo-caption">${t('captLitter2f')}</p>
     </div>
-
   `;
 }
 
 // ── Coffee ─────────────────────────────────────────────────────────────────
 function renderCoffee() {
   document.getElementById('panel-coffee').innerHTML = `
-    <div class="section-title">The machine</div>
+    <div class="section-title">${t('sectionMachine')}</div>
     <div class="card">
       <img src="coffee-machine.jpg" alt="SMEG coffee machine" class="door-photo" style="max-height:300px">
-      <p class="door-photo-caption">SMEG BCC13 Bean to Cup</p>
+      <p class="door-photo-caption">${t('captMachine')}</p>
       <div class="info-row">
         <span class="info-icon">🔴</span>
-        <div>
-          <div class="info-lbl">Power</div>
-          <div class="info-val">Button on the side</div>
-        </div>
+        <div><div class="info-lbl">${t('lblPower')}</div><div class="info-val">${t('valPower')}</div></div>
       </div>
       <div class="info-row">
         <span class="info-icon">🔘</span>
-        <div>
-          <div class="info-lbl">Modes</div>
-          <div class="info-val">Button in the middle — cycles through Espresso, Coffee, Long Coffee, Americano, Hot Water</div>
-        </div>
+        <div><div class="info-lbl">${t('lblModes')}</div><div class="info-val">${t('valModes')}</div></div>
       </div>
       <div class="info-row">
         <span class="info-icon">📖</span>
-        <div>
-          <div class="info-lbl">Manual & beans</div>
-          <div class="info-val">Instruction manual and coffee beans are in the cupboard above the machine</div>
-        </div>
+        <div><div class="info-lbl">${t('lblManual')}</div><div class="info-val">${t('valManual')}</div></div>
       </div>
     </div>
-    <div class="section-title">Quick start guide</div>
+    <div class="section-title">${t('sectionGuide')}</div>
     <div class="card">
       <img src="coffee-guide.jpg" alt="SMEG quick start guide" class="door-photo" style="max-height:400px">
-      <p class="door-photo-caption">SMEG quick start guide — also in the cupboard above</p>
+      <p class="door-photo-caption">${t('captGuide')}</p>
     </div>
   `;
+}
+
+// ── Language toggle ─────────────────────────────────────────────────────────
+function toggleLang() {
+  lang = lang === 'no' ? 'en' : 'no';
+  updateHeader();
+  renderTasks();
+  renderCats();
+  renderInfo();
+  renderCoffee();
 }
 
 // ── Tabs ───────────────────────────────────────────────────────────────────
 function switchTab(name, btn) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
   document.getElementById(`panel-${name}`).classList.add('active');
   btn.classList.add('active');
   window.scrollTo(0, 0);
 }
 
+// ── Firebase sync ──────────────────────────────────────────────────────────
 function pollDB() {
   fetch(`${DB}/tasks.json`).then(r => r.json()).then(data => {
     if (!data || typeof data !== 'object') return;
@@ -743,6 +843,7 @@ fetch(`${DB}/tasks.json`)
   .then(data => { if (data && typeof data === 'object') Object.assign(_fc, data); })
   .catch(() => {})
   .finally(() => {
+    updateHeader();
     renderTasks();
     renderCats();
     renderInfo();
