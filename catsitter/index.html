@@ -307,11 +307,11 @@ const STRINGS = {
     lblLeave: 'Eierne reiser',    valLeave: 'Lørdag, 25. juli kl. 13:55',
     lblReturn: 'Eierne returnerer', valReturn: 'Tirsdag, 28. juli kl. 21:25',
     lblVisitDays: 'Dine besøksdager',
-    visitDay1: 'Søn 26. juli', visitDay2: 'Man 27. juli', visitDay3: 'Tir 28. juli',
+    visitDay1: 'Lør 25. juli', visitDay2: 'Søn 26. juli', visitDay3: 'Man 27. juli', visitDay4: 'Tir 28. juli',
     calHint: 'Legg til alle besøksdager i kalenderen',
     btnGoogle: '📅 Google Kalender', btnApple: '🍎 Apple Kalender',
-    departureDay: '⚠️ <strong>Avreisedag:</strong> Eierne reiser kl. 13:55. Ditt første besøk er i morgen, søndag 26. juli.',
-    dayLabels: ['Søndag · 26. juli', 'Mandag · 27. juli', 'Tirsdag · 28. juli'],
+    departureDay: '⚠️ <strong>Avreisedag:</strong> Eierne reiser kl. 13:55. Du besøker kattene i dag!',
+    dayLabels: ['Lørdag · 25. juli', 'Søndag · 26. juli', 'Mandag · 27. juli', 'Tirsdag · 28. juli'],
     todayBadge: 'I DAG',
     taskData: [
       { icon: '🍽️', label: 'Fyll opp chip-kontrollerte matere', sub: 'Tørrfôr + våtfôr til alle tre kattene' },
@@ -383,11 +383,11 @@ const STRINGS = {
     lblLeave: 'Owners leave',    valLeave: 'Saturday, July 25 at 13:55',
     lblReturn: 'Owners return',  valReturn: 'Tuesday, July 28 at 21:25',
     lblVisitDays: 'Your visit days',
-    visitDay1: 'Sun July 26', visitDay2: 'Mon July 27', visitDay3: 'Tue July 28',
+    visitDay1: 'Sat July 25', visitDay2: 'Sun July 26', visitDay3: 'Mon July 27', visitDay4: 'Tue July 28',
     calHint: 'Add all visit days to your calendar',
     btnGoogle: '📅 Google Calendar', btnApple: '🍎 Apple Calendar',
-    departureDay: '⚠️ <strong>Departure day:</strong> The owners leave at 13:55. Your first visit is tomorrow, Sunday July 26.',
-    dayLabels: ['Sunday · July 26', 'Monday · July 27', 'Tuesday · July 28'],
+    departureDay: '⚠️ <strong>Departure day:</strong> The owners leave at 13:55. You\'re visiting the cats today!',
+    dayLabels: ['Saturday · July 25', 'Sunday · July 26', 'Monday · July 27', 'Tuesday · July 28'],
     todayBadge: 'TODAY',
     taskData: [
       { icon: '🍽️', label: 'Refill chip-controlled feeders', sub: 'Dry food + wet food for all three cats' },
@@ -465,7 +465,7 @@ function set(d, id, v) {
 }
 
 const TASK_IDS       = ['feed', 'water', 'litter2', 'litter3', 'cuddle'];
-const VISIT_DATES    = ['2026-07-26', '2026-07-27', '2026-07-28'];
+const VISIT_DATES    = ['2026-07-25', '2026-07-26', '2026-07-27', '2026-07-28'];
 const CAT_NAMES      = ['Ruski', 'Evi', 'Kiara'];
 const CAT_PHOTOS     = ['cat-ruski.jpg', 'cat-evi.jpg', 'cat-kiara.jpg'];
 const CAT_PHOTO_POS  = [null, null, 'center bottom'];
@@ -482,13 +482,13 @@ function nextDay(date) {
 function addRangeToAppleCal() {
   const ics = [
     'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Cat Sitter//EN','BEGIN:VEVENT',
-    'DTSTART;VALUE=DATE:20260726','DTEND;VALUE=DATE:20260729',
+    'DTSTART;VALUE=DATE:20260725','DTEND;VALUE=DATE:20260729',
     'SUMMARY:Cat Sitter Visit','DESCRIPTION:Look after Ruski\\, Evi & Kiara',
     'END:VEVENT','END:VCALENDAR'
   ].join('\r\n');
   const a = Object.assign(document.createElement('a'), {
     href: URL.createObjectURL(new Blob([ics], {type: 'text/calendar'})),
-    download: 'cat-sitter-jul26-28.ics'
+    download: 'cat-sitter-jul25-28.ics'
   });
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
@@ -500,7 +500,7 @@ function updateHeader() {
   document.getElementById('hdr-title').textContent = t('title');
   document.getElementById('lang-btn').textContent  = t('langBtn');
   const statusEl = document.getElementById('trip-status');
-  if      (today < '2026-07-26') statusEl.textContent = t('statusBefore');
+  if      (today < '2026-07-25') statusEl.textContent = t('statusBefore');
   else if (today > '2026-07-28') statusEl.textContent = t('statusAfter');
   else                           statusEl.textContent  = t('statusDuring');
   document.querySelectorAll('[data-key]').forEach(el => {
@@ -533,13 +533,14 @@ function renderTasks() {
           <div class="info-val">${t('visitDay1')}</div>
           <div class="info-val">${t('visitDay2')}</div>
           <div class="info-val">${t('visitDay3')}</div>
+          <div class="info-val">${t('visitDay4')}</div>
         </div>
       </div>
     </div>
     <div class="card" style="text-align:center">
       <div style="font-size:13px;color:var(--muted);margin-bottom:10px">${t('calHint')}</div>
       <div class="cal-btns">
-        <a class="cal-btn cal-btn-google" href="https://calendar.google.com/calendar/render?action=TEMPLATE&text=Cat+Sitter+Visit&dates=20260726/20260729&details=Look+after+Ruski%2C+Evi+%26+Kiara" target="_blank" rel="noopener">${t('btnGoogle')}</a>
+        <a class="cal-btn cal-btn-google" href="https://calendar.google.com/calendar/render?action=TEMPLATE&text=Cat+Sitter+Visit&dates=20260725/20260729&details=Look+after+Ruski%2C+Evi+%26+Kiara" target="_blank" rel="noopener">${t('btnGoogle')}</a>
         <button class="cal-btn cal-btn-apple" onclick="addRangeToAppleCal()">${t('btnApple')}</button>
       </div>
     </div>`);
