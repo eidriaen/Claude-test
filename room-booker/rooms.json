@@ -1,0 +1,24 @@
+{
+  "rooms": [
+    {
+      "id": "room-a",
+      "name": "Møterom A",
+      "capacity": 8,
+      "ics_url": "https://outlook.office365.com/owa/calendar/PLACEHOLDER_ROOM_A/reachcalendar.ics"
+    },
+    {
+      "id": "room-b",
+      "name": "Møterom B",
+      "capacity": 4,
+      "ics_url": "https://outlook.office365.com/owa/calendar/PLACEHOLDER_ROOM_B/reachcalendar.ics"
+    },
+    {
+      "id": "room-c",
+      "name": "Styrerom",
+      "capacity": 12,
+      "ics_url": "https://outlook.office365.com/owa/calendar/PLACEHOLDER_ROOM_C/reachcalendar.ics"
+    }
+  ],
+  "cache_ttl_seconds": 60,
+  "booking_webhook_url": ""
+}

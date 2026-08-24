@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rombestilling – NPG</title>
+<style>
+  /* ---- Reset & tokens ---- */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:         #0f1117;
+    --surface:    #1c1f2b;
+    --surface2:   #252836;
+    --border:     #2e3244;
+    --txt:        #e8eaf0;
+    --txt-muted:  #8a8fa8;
+    --green:      #22c55e;
+    --green-dim:  #16532d;
+    --yellow:     #f59e0b;
+    --yellow-dim: #6b3f00;
+    --red:        #ef4444;
+    --red-dim:    #5a1a1a;
+    --blue:       #3b82f6;
+    --accent:     #6366f1;
+    --radius:     14px;
+    --radius-sm:  8px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--txt);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---- Header ---- */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    flex-shrink: 0;
+  }
+
+  .header-logo {
+    font-size: 1.3rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .header-logo span { color: var(--accent); }
+
+  .header-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 0.85rem;
+    color: var(--txt-muted);
+  }
+
+  #demo-badge {
+    background: var(--yellow-dim);
+    color: var(--yellow);
+    padding: 3px 10px;
+    border-radius: 99px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    display: none;
+  }
+
+  #clock {
+    font-variant-numeric: tabular-nums;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--txt);
+  }
+
+  #updated-at {
+    color: var(--txt-muted);
+    font-size: 0.78rem;
+  }
+
+  /* ---- Main grid ---- */
+  main {
+    flex: 1;
+    padding: 24px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    align-content: start;
+  }
+
+  /* ---- Room card ---- */
+  .room-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: border-color 0.2s;
+  }
+
+  .room-card.free   { border-color: var(--green); }
+  .room-card.soon   { border-color: var(--yellow); }
+  .room-card.busy   { border-color: var(--red); }
+  .room-card.error  { border-color: var(--border); }
+
+  .room-header {
+    padding: 16px 18px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .room-name {
+    font-size: 1.15rem;
+    font-weight: 700;
+  }
+
+  .room-cap {
+    font-size: 0.78rem;
+    color: var(--txt-muted);
+    margin-top: 2px;
+  }
+
+  .status-pill {
+    padding: 4px 12px;
+    border-radius: 99px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .pill-free   { background: var(--green-dim);  color: var(--green); }
+  .pill-soon   { background: var(--yellow-dim); color: var(--yellow); }
+  .pill-busy   { background: var(--red-dim);    color: var(--red); }
+  .pill-error  { background: var(--surface2);   color: var(--txt-muted); }
+
+  .room-subtext {
+    padding: 0 18px 14px;
+    font-size: 0.85rem;
+    color: var(--txt-muted);
+    min-height: 22px;
+  }
+
+  /* ---- Schedule strip ---- */
+  .schedule {
+    border-top: 1px solid var(--border);
+    padding: 10px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex: 1;
+  }
+
+  .schedule-title {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--txt-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+  }
+
+  .sched-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.82rem;
+  }
+
+  .sched-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .sched-item.ongoing .sched-dot  { background: var(--red); }
+  .sched-item.upcoming .sched-dot { background: var(--yellow); }
+  .sched-item.past .sched-dot     { background: var(--border); }
+
+  .sched-time { font-variant-numeric: tabular-nums; }
+  .sched-item.past .sched-time { color: var(--txt-muted); }
+
+  .sched-empty { font-size: 0.82rem; color: var(--txt-muted); padding: 4px 0; }
+
+  /* ---- Book button ---- */
+  .book-wrap {
+    padding: 12px 18px 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .btn-book {
+    width: 100%;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+
+  .btn-book:hover  { opacity: 0.85; }
+  .btn-book:active { opacity: 0.7; }
+  .btn-book:disabled { opacity: 0.35; cursor: default; }
+
+  /* ---- Error card ---- */
+  .error-msg {
+    padding: 0 18px 16px;
+    font-size: 0.82rem;
+    color: var(--txt-muted);
+  }
+
+  /* ---- Skeleton loader ---- */
+  .skeleton {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    height: 200px;
+    position: relative;
+    overflow: hidden;
+  }
+  .skeleton::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 50%, transparent 100%);
+    animation: shimmer 1.5s infinite;
+  }
+  @keyframes shimmer {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(100%); }
+  }
+
+  /* ---- Toast ---- */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 20px;
+    font-size: 0.88rem;
+    transition: transform 0.3s ease;
+    pointer-events: none;
+    z-index: 100;
+    white-space: nowrap;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ---- Kiosk mode ---- */
+  body.kiosk header { padding: 12px 24px; }
+  body.kiosk main   { gap: 16px; padding: 16px; }
+  body.kiosk .room-name { font-size: 1.3rem; }
+  body.kiosk .status-pill { font-size: 0.9rem; padding: 5px 14px; }
+
+  /* ---- Responsive ---- */
+  @media (max-width: 480px) {
+    main { padding: 12px; gap: 12px; }
+    header { padding: 12px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-logo">
+    <span>NPG</span> Romkart
+    <span id="demo-badge">DEMO</span>
+  </div>
+  <div class="header-meta">
+    <span id="clock">--:--</span>
+    <span id="updated-at"></span>
+  </div>
+</header>
+
+<main id="grid">
+  <!-- skeletons while loading -->
+  <div class="skeleton"></div>
+  <div class="skeleton"></div>
+  <div class="skeleton"></div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Config
+// ---------------------------------------------------------------------------
+const REFRESH_INTERVAL = 60 * 1000; // 60 s
+const API_URL          = '/api/rooms';
+const BOOK_URL         = '/api/book';
+
+// Enable booking button if server has a webhook configured
+// (determined at runtime from API response — not shown if server returns no webhook)
+let bookingEnabled = false;
+
+// Kiosk mode: ?kiosk=1 → larger text, no scrollbars, full-screen feel
+if (new URLSearchParams(location.search).get('kiosk') === '1') {
+  document.body.classList.add('kiosk');
+  document.documentElement.style.overflow = 'hidden';
+}
+
+// ---------------------------------------------------------------------------
+// Clock
+// ---------------------------------------------------------------------------
+function updateClock() {
+  const t = new Date().toLocaleTimeString('no-NO', {
+    timeZone: 'Europe/Oslo',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  });
+  document.getElementById('clock').textContent = t;
+}
+updateClock();
+setInterval(updateClock, 5000);
+
+// ---------------------------------------------------------------------------
+// Toast
+// ---------------------------------------------------------------------------
+let toastTimer;
+function showToast(msg, ms = 3000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), ms);
+}
+
+// ---------------------------------------------------------------------------
+// Render
+// ---------------------------------------------------------------------------
+function statusLabel(room) {
+  if (room.status === 'free')  return 'Ledig';
+  if (room.status === 'soon')  return 'Snart opptatt';
+  if (room.status === 'busy')  return 'Opptatt';
+  return 'Feil';
+}
+
+function subText(room) {
+  if (room.status === 'busy'  && room.freeAt)  return `Ledig fra ${room.freeAt}`;
+  if (room.status === 'soon'  && room.busyAt)  return `Opptatt fra ${room.busyAt}`;
+  if (room.status === 'free')                  return 'Tilgjengelig nå';
+  if (room.status === 'error' && room.error)   return room.error;
+  return '';
+}
+
+function scheduleHTML(room) {
+  if (room.status === 'error') return '';
+  const now = new Date();
+  const nowHM = now.toLocaleTimeString('no-NO', {
+    timeZone: 'Europe/Oslo', hour: '2-digit', minute: '2-digit', hour12: false
+  });
+
+  if (!room.schedule || room.schedule.length === 0) {
+    return `<div class="schedule">
+      <div class="schedule-title">Dagens program</div>
+      <div class="sched-empty">Ingen møter i dag</div>
+    </div>`;
+  }
+
+  const items = room.schedule.map((s) => {
+    const isPast     = s.past;
+    const isOngoing  = !isPast && s.start <= nowHM && s.end > nowHM;
+    const isUpcoming = !isPast && !isOngoing;
+    const cls = isPast ? 'past' : isOngoing ? 'ongoing' : 'upcoming';
+    return `<div class="sched-item ${cls}">
+      <span class="sched-dot"></span>
+      <span class="sched-time">${s.start}–${s.end}</span>
+    </div>`;
+  }).join('');
+
+  return `<div class="schedule">
+    <div class="schedule-title">Dagens program</div>
+    ${items}
+  </div>`;
+}
+
+function bookButton(room) {
+  if (!bookingEnabled) return '';
+  const disabled = room.status === 'busy' ? ' disabled' : '';
+  return `<div class="book-wrap">
+    <button class="btn-book" onclick="bookRoom('${room.id}', '${room.name}')"${disabled}>
+      Reserver rom
+    </button>
+  </div>`;
+}
+
+function renderRooms(data) {
+  const grid = document.getElementById('grid');
+
+  if (data.demo) {
+    document.getElementById('demo-badge').style.display = 'inline';
+  }
+
+  document.getElementById('updated-at').textContent = `Oppdatert ${data.updatedAt}`;
+
+  grid.innerHTML = data.rooms.map((room) => {
+    return `<div class="room-card ${room.status}">
+      <div class="room-header">
+        <div>
+          <div class="room-name">${esc(room.name)}</div>
+          <div class="room-cap">👥 ${room.capacity} plasser</div>
+        </div>
+        <span class="status-pill pill-${room.status}">${statusLabel(room)}</span>
+      </div>
+      <div class="room-subtext">${subText(room)}</div>
+      ${scheduleHTML(room)}
+      ${room.status === 'error' && room.error
+        ? `<div class="error-msg">⚠️ ${esc(room.error)}</div>`
+        : ''}
+      ${bookButton(room)}
+    </div>`;
+  }).join('');
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[c]));
+}
+
+// ---------------------------------------------------------------------------
+// Fetch
+// ---------------------------------------------------------------------------
+let refreshTimer;
+
+async function fetchAndRender(showSkeleton = false) {
+  if (showSkeleton) {
+    document.getElementById('grid').innerHTML =
+      '<div class="skeleton"></div>'.repeat(3);
+  }
+  try {
+    const res  = await fetch(API_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    renderRooms(data);
+  } catch (e) {
+    document.getElementById('updated-at').textContent = 'Feil ved henting';
+    console.error('Fetch error:', e);
+  }
+}
+
+function scheduleRefresh() {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(() => {
+    fetchAndRender();
+    scheduleRefresh();
+  }, REFRESH_INTERVAL);
+}
+
+// Initial load
+fetchAndRender(true).then(scheduleRefresh);
+
+// Refresh immediately when tab becomes visible again
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) fetchAndRender();
+});
+
+// ---------------------------------------------------------------------------
+// Booking
+// ---------------------------------------------------------------------------
+async function bookRoom(roomId, roomName) {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = 'Sender…';
+
+  try {
+    const res = await fetch(BOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roomId, roomName, requestedAt: new Date().toISOString() })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(`✅ Forespørsel sendt for ${roomName}`);
+    } else {
+      showToast(`❌ ${data.error || 'Booking feilet'}`);
+    }
+  } catch (e) {
+    showToast('❌ Nettverksfeil ved booking');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Reserver rom';
+  }
+}
+</script>
+</body>
+</html>
