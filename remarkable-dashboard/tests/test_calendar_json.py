@@ -164,3 +164,37 @@ def test_several_candidates_are_listed_rather_than_guessed(tmp_path, monkeypatch
     found, note = find_calendar_file(str(home / "nope" / "calendar.json"))
     assert found is None, "picking one of several would silently read the wrong calendar"
     assert "candidates" in note
+
+
+def test_cancelled_events_are_dropped():
+    """Outlook renames a cancelled meeting rather than deleting it, so the row
+    still arrives and would otherwise occupy a slot on the grid."""
+    events = parse_calendar_json(json.dumps({"value": [
+        {"subject": "Canceled: Vanguard: Internal Playtest",
+         "startWithTimeZone": "2026-09-10T13:30:00+00:00",
+         "endWithTimeZone": "2026-09-10T14:00:00+00:00"},
+        {"subject": "Vanguard: Playtest",
+         "startWithTimeZone": "2026-09-17T12:30:00+00:00",
+         "endWithTimeZone": "2026-09-17T13:00:00+00:00"},
+    ]}))
+    assert [e.title for e in events] == ["Vanguard: Playtest"]
+
+
+def test_cancelled_prefix_is_matched_in_other_locales():
+    """The prefix follows the organiser's locale, not yours."""
+    for prefix in ("Canceled:", "Cancelled:", "Avlyst:"):
+        events = parse_calendar_json(json.dumps({"value": [
+            {"subject": f"{prefix} Standup",
+             "startWithTimeZone": "2026-09-10T07:00:00+00:00",
+             "endWithTimeZone": "2026-09-10T07:30:00+00:00"}]}))
+        assert events == [], f"{prefix!r} should be treated as cancelled"
+
+
+def test_a_title_merely_mentioning_cancellation_survives():
+    """Only the prefix means cancelled -- a meeting *about* a cancellation is a
+    real meeting you still have to attend."""
+    events = parse_calendar_json(json.dumps({"value": [
+        {"subject": "Discuss cancelled order with Vard",
+         "startWithTimeZone": "2026-09-10T07:00:00+00:00",
+         "endWithTimeZone": "2026-09-10T07:30:00+00:00"}]}))
+    assert len(events) == 1

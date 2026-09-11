@@ -35,6 +35,18 @@ _LOCATION = ("location", "locationDisplayName", "where", "room")
 _ALLDAY = ("isAllDay", "allDay", "is_all_day")
 
 
+# Outlook renames a cancelled meeting rather than deleting it, and the prefix
+# it uses follows the organiser's locale.
+_CANCELLED = ("canceled:", "cancelled:", "avlyst:", "annullert:", "abgesagt:")
+
+
+def is_cancelled(row: dict) -> bool:
+    subject = _text(_first(row, _SUBJECT)).lower()
+    if any(subject.startswith(w) for w in _CANCELLED):
+        return True
+    return _text(row.get("isCancelled") or row.get("is_cancelled")).lower() == "true"
+
+
 def _first(row: dict, names: tuple[str, ...]) -> object:
     for n in names:
         if n in row and row[n] not in (None, ""):
@@ -127,6 +139,8 @@ def parse_calendar_json(text: str) -> list[Event]:
     rows = _rows(json.loads(text))
     events: list[Event] = []
     for row in rows:
+        if is_cancelled(row):
+            continue
         tz_hint = _text(row.get("timeZone") or row.get("timezone") or "")
         all_day = bool(_first(row, _ALLDAY))
 

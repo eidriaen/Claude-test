@@ -33,7 +33,7 @@ PBOX = 40              # H/M/L selector box side (still >= 44 with its gap)
 PRIO = ("High", "Medium", "Low")
 ROW_H = 72
 PRIO_ROW_H = 84        # task rows carry the H/M/L picker, so they need more height
-HOUR_FIRST, HOUR_LAST = 7, 20      # grid shows 07:00 … 21:00
+HOUR_FIRST, HOUR_LAST = 8, 17      # grid shows 08:00 … 18:00
 WEEK_DAYS = 5                      # Mon–Fri; weekend events are flagged, not drawn
 
 DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -74,6 +74,16 @@ def _hours(ev: Event, day: date) -> tuple[float, float]:
     s = (ev.start - day_start).total_seconds() / 3600
     e = (ev.end - day_start).total_seconds() / 3600
     return max(s, HOUR_FIRST), min(e, HOUR_LAST + 1)
+
+
+def _outside_grid(ev: Event, day: date) -> bool:
+    """True if the event falls wholly outside the drawn hours on `day`.
+
+    An event that merely overlaps an edge is clipped and still visible; this is
+    only for ones with nowhere on the page at all.
+    """
+    start, end = _hours(ev, day)
+    return end <= start
 
 
 def _lanes(events: list[Event], day: date) -> list[tuple[Event, int, int]]:
@@ -348,9 +358,22 @@ class Renderer:
         gh = 930
         if self.d.events_status.ok:
             self.hour_grid(M, gy, PAGE_W - 2 * M, gh, [d], [PAGE_W - 2 * M - 70])
-            all_day = [ev for ev in events_on(self.d.events, d) if ev.all_day]
+            today_events = events_on(self.d.events, d)
+            notes = []
+            all_day = [ev for ev in today_events if ev.all_day]
             if all_day:
-                self.text(M + 70, gy - 10, "All day: " + ", ".join(ev.title for ev in all_day), F, 20, GREY)
+                notes.append("All day: " + ", ".join(ev.title for ev in all_day))
+            # The grid stops at 18:00 for legibility, so anything wholly outside
+            # it has nowhere to be drawn. Naming it costs one line; dropping it
+            # would leave the page asserting a clear evening.
+            outside = [ev for ev in today_events if not ev.all_day and _outside_grid(ev, d)]
+            if outside:
+                notes.append("Outside " + f"{HOUR_FIRST:02d}–{HOUR_LAST + 1:02d}: "
+                             + ", ".join(f"{ev.start.astimezone(TZ):%H:%M} {ev.title}"
+                                         for ev in outside[:3]))
+            if notes:
+                self.text(M + 70, gy - 10, _fit("   ·   ".join(notes), F, 20,
+                                                PAGE_W - 2 * M - 80), F, 20, GREY)
         else:
             self.unavailable(gy, "Calendar", self.d.events_status)
 
@@ -452,13 +475,15 @@ class Renderer:
         # Anything falling on a day the grid does not draw would vanish without
         # trace, so say it is there rather than let the page imply an empty
         # weekend. Rare, but a dropped event is worse than a small line of text.
-        hidden = [ev for ev in self.d.events
-                  if monday <= ev.start.date() <= monday + timedelta(days=6)
-                  and ev.start.weekday() >= WEEK_DAYS]
+        in_week = [ev for ev in self.d.events
+                   if monday <= ev.start.date() <= monday + timedelta(days=6)]
+        hidden = [ev for ev in in_week
+                  if ev.start.weekday() >= WEEK_DAYS
+                  or (not ev.all_day and _outside_grid(ev, ev.start.date()))]
         if hidden:
-            names = ", ".join(_fit(ev.title, F, 18, 260) for ev in hidden[:2])
+            names = ", ".join(_fit(ev.title, F, 18, 240) for ev in hidden[:2])
             more = f" +{len(hidden) - 2}" if len(hidden) > 2 else ""
-            self.text(PAGE_W - M, y + 26, f"weekend: {names}{more}", F, 18, GREY, align="right")
+            self.text(PAGE_W - M, y + 26, f"not shown: {names}{more}", F, 18, GREY, align="right")
 
         # day headers + all-day strip
         hy = y + 40
