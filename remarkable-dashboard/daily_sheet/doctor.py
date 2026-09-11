@@ -175,7 +175,7 @@ def check_readback(cfg: Config, rm: Rmapi, rmapi_ok: bool, sheets: list[str], re
     on_tablet = rmapi_ok and name in sheets
 
     if have_layout and on_tablet:
-        rep.add(OK, "read-back (ticks → Asana)",
+        rep.add(OK, "read-back (ticks -> Asana)",
                 f"ready — tomorrow's run will read {name}")
         return
 
@@ -186,7 +186,7 @@ def check_readback(cfg: Config, rm: Rmapi, rmapi_ok: bool, sheets: list[str], re
     if rmapi_ok and not on_tablet:
         detail.append(f"'{name}' not in {cfg.remarkable_folder}/")
 
-    rep.add(WARN, "read-back (ticks → Asana)", "; ".join(detail) or "not ready",
+    rep.add(WARN, "read-back (ticks -> Asana)", "; ".join(detail) or "not ready",
             "This is normal on day one — read-back reads YESTERDAY's sheet,\n"
             "so it starts working the morning after your first real run.\n"
             f"Layouts on disk: {', '.join(layouts) or 'none'}\n"

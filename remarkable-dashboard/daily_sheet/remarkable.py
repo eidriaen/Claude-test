@@ -26,7 +26,8 @@ class Rmapi:
     cfg: Config
 
     # -- plumbing -------------------------------------------------------
-    def _run(self, *args: str, check: bool = True) -> subprocess.CompletedProcess:
+    def _run(self, *args: str, check: bool = True,
+             cwd: Path | None = None) -> subprocess.CompletedProcess:
         cmd = [self.cfg.rmapi_bin, *args]
         try:
             # rmapi emits UTF-8. Without an explicit encoding Python decodes with
@@ -34,7 +35,8 @@ class Rmapi:
             # the em-dash in "Daily Sheet — <date>" — and since find() matches the
             # name exactly, read-back would never locate yesterday's sheet.
             p = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT,
-                               encoding="utf-8", errors="replace")
+                               encoding="utf-8", errors="replace",
+                               cwd=str(cwd) if cwd else None)
         except FileNotFoundError as e:
             raise RmapiError(f"{self.cfg.rmapi_bin} not found on PATH — see README") from e
         except subprocess.TimeoutExpired as e:
@@ -108,7 +110,7 @@ class Rmapi:
         """
         self.ensure_folder(folder)
         try:
-            self._run("put", str(pdf), folder)
+            self._put(pdf, folder)
             return "uploaded"
         except RmapiError as exc:
             if "already exists" not in str(exc).lower():
@@ -123,13 +125,27 @@ class Rmapi:
             pass        # name already taken in Archive, or mv unsupported
 
         try:
-            self._run("put", str(pdf), folder)
+            self._put(pdf, folder)
             return "replaced (previous sheet archived)" if archived else "replaced"
         except RmapiError as exc:
             if "already exists" not in str(exc).lower():
                 raise
-            self._run("put", "--force", str(pdf), folder)
+            self._put(pdf, folder, force=True)
             return "overwritten (could not archive the previous sheet)"
+
+    def _put(self, pdf: Path, folder: str, force: bool = False) -> None:
+        """Upload `pdf`, naming the document after the file alone.
+
+        rmapi derives the document name from the path it is given, and on
+        Windows it does not strip a backslash directory -- an absolute path
+        produces a document literally called
+        "C:\\...\\out\\Daily Sheet - 2026-09-11". Nothing then finds it by name,
+        so read-back silently never locates the sheet. Running from the file's
+        own directory and passing the bare filename keeps the name clean on
+        every platform.
+        """
+        args = ["put"] + (["--force"] if force else []) + [pdf.name, folder]
+        self._run(*args, cwd=pdf.parent)
 
     def move(self, src: str, dst_folder: str) -> None:
         self.ensure_folder(dst_folder)

@@ -107,11 +107,11 @@ class App:
         for i in (0, 1):
             grid.columnconfigure(i, weight=1, uniform="b")
 
-        self._button(grid, 0, 0, "Sync now",
-                     "Read your pen ticks → complete them in Asana",
-                     lambda: self.run(["sync"], "Syncing"))
-        self._button(grid, 0, 1, "New sheet",
-                     "Fetch calendar + Asana → push a fresh sheet",
+        self._button(grid, 0, 0, "Send my ticks  →  Asana",
+                     "Reads the boxes you ticked and completes them in Asana",
+                     lambda: self.run(["sync"], "Reading your ticks"))
+        self._button(grid, 0, 1, "Asana + calendar  →  new sheet",
+                     "Builds today's sheet from current data and pushes it",
                      lambda: self.run(["generate"], "Building sheet"))
         self._button(grid, 1, 0, "What's on the tablet",
                      "List Daily/ and Archive/ — where your ticks live",

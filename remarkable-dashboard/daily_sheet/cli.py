@@ -154,10 +154,10 @@ def tablet(cfg: Config) -> int:
         for e in entries:
             mark = ""
             if e == sheet_name(date.today()):
-                mark = "  ← sync reads this one" if folder == cfg.remarkable_folder else \
-                       "  ← today's sheet, but archived: sync will not read it"
+                mark = "  <- sync reads this one" if folder == cfg.remarkable_folder else \
+                       "  <- today's sheet, but ARCHIVED: sync will not read it"
             elif today in e:
-                mark = "  ← today"
+                mark = "  <- today"
             print(f"    {e}{mark}")
     print()
     return 0
@@ -314,13 +314,28 @@ def calibrate(pdf: Path, layout_path: Path) -> int:
     rows.sort(reverse=True)
     print(f"{'ratio':>8}  {'kind':<9} {'page':>4}  id")
     for ratio, r in rows:
-        flag = "  ← would count as marked" if ratio >= CHECK_MIN else ""
+        flag = "  <- would count as marked" if ratio >= CHECK_MIN else ""
         print(f"{ratio:8.4f}  {r.kind:<9} {r.page:>4}  {r.id}{flag}")
     print(f"\ncurrent CHECK_MIN = {CHECK_MIN}. Set INK_CHECK_MIN in .env to override.")
     return 0
 
 
+def _utf8_stdout() -> None:
+    """Stop a legacy console codepage killing the run.
+
+    Windows defaults stdout to cp1252, which cannot encode the arrows and
+    dashes this tool prints -- and an unencodable character raises rather than
+    degrading, so a cosmetic glyph takes down the whole command.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, OSError, ValueError):
+            pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _utf8_stdout()
     p = argparse.ArgumentParser(prog="daily_sheet", description="reMarkable daily sheet generator")
     sub = p.add_subparsers(dest="cmd", required=True)
 

@@ -27,7 +27,7 @@ def rm(tmp_path):
 
 def _stub(rm, *, put_fails_until_forced=False, put_fails_always=False, mv_fails=False):
     """Replace _run with a recorder that mimics rmapi's behaviour."""
-    def fake(*args, check=True):
+    def fake(*args, check=True, cwd=None):
         rm.calls.append(args)
         cmd = args[0]
         if cmd == "mkdir":
@@ -56,6 +56,10 @@ def test_clean_upload_does_not_touch_anything_else(rm, tmp_path):
     assert rm.upload(pdf, "Daily") == "uploaded"
     assert len(_puts(rm)) == 1
     assert not [c for c in rm.calls if c[0] == "mv"], "nothing to archive on a first push"
+    # rmapi names the document after the path it is handed, and does not strip a
+    # Windows directory -- passing an absolute path produced a document called
+    # "C:\\...\\out\\Daily Sheet - <date>" that nothing could find by name.
+    assert _puts(rm)[0][1] == pdf.name, "must upload by bare filename, not a path"
 
 
 def test_same_day_rerun_archives_the_old_sheet_then_uploads(rm, tmp_path):
@@ -86,7 +90,7 @@ def test_falls_back_to_force_only_when_archiving_fails(rm, tmp_path):
 
 
 def test_unrelated_put_failure_is_not_swallowed(rm, tmp_path):
-    def fake(*args, check=True):
+    def fake(*args, check=True, cwd=None):
         rm.calls.append(args)
         if args[0] == "put":
             raise RmapiError("rmapi put failed: connection refused")
