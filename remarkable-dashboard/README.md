@@ -130,6 +130,9 @@ Double-click **`Daily Sheet.bat`** (or `dashboard.pyw` directly). Four buttons:
 | **Check Asana board** | Shows the sections and custom fields the Projects page reads |
 | **Check connections** | Tests rmapi, the calendar feed, Asana, and the API key |
 
+**Update** in the bottom bar runs `git pull` in the project folder, so the
+window can update itself without a terminal.
+
 Right-click the `.bat` → **Send to → Desktop (create shortcut)** for an icon.
 
 Everything below is the same thing from a terminal.
@@ -185,8 +188,8 @@ A failed push exits non-zero, so a broken run shows up as **Last Run Result**
 |---|---|
 | 1 | **Today** — hour grid 07–20, top-3 priorities, yesterday's ingestion report |
 | 2–4 | **Week** — last / this / next, with ‹ Prev and Next › tap zones |
-| 5 | **Tasks** — checkbox, priority box, `carried Nd` tag, New tasks box |
-| 6 | **Asana** — assigned to you, overdue first |
+| 5 | **Tasks** — Asana tasks assigned to you, overdue first, plus the New tasks box |
+| 6 | **Projects** — the pipeline board by section, with Active / Signed / Incoming totals |
 | 7 | **Notes** — blank ruled page |
 
 Every page carries the same tappable nav bar. Task lists paginate rather than

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import queue
+import shutil
 import subprocess
 import sys
 import threading
@@ -128,6 +129,9 @@ class App:
         bar.pack(fill="x", pady=(14, 6), **pad)
         ttk.Button(bar, text="Clear log", command=self.clear).pack(side="right")
         ttk.Button(bar, text="Open folder", command=self.open_folder).pack(side="right", padx=(0, 8))
+        ttk.Button(bar, text="Update", command=self.update_code).pack(side="left")
+        ttk.Label(bar, text="pulls the latest version from GitHub",
+                  style="Muted.TLabel").pack(side="left", padx=(8, 0))
 
         wrap = tk.Frame(self.root, bg=RULE, bd=0, highlightthickness=1, highlightbackground=RULE)
         wrap.pack(fill="both", expand=True, pady=(0, 16), **pad)
@@ -166,6 +170,14 @@ class App:
         self.out.delete("1.0", "end")
         self.out.configure(state="disabled")
 
+    def update_code(self) -> None:
+        """git pull, in the project directory rather than wherever we were launched."""
+        git = shutil.which("git")
+        if not git:
+            self.log("git is not on PATH — install Git for Windows to use Update.\n", BAD)
+            return
+        self.run_cmd([git, "-C", str(HERE), "pull", "--ff-only"], "Updating")
+
     def open_folder(self) -> None:
         try:
             if sys.platform == "win32":
@@ -179,6 +191,9 @@ class App:
 
     # -- running --------------------------------------------------------
     def run(self, args: list[str], label: str) -> None:
+        self.run_cmd(python_exe() + ["-m", "daily_sheet", *args], label)
+
+    def run_cmd(self, cmd: list[str], label: str) -> None:
         if self.running:
             return
         self.running = True
@@ -186,10 +201,9 @@ class App:
             b.state(["disabled"])
         self.status.configure(text=f"{label}…", foreground=BUSY)
         self.log(f"\n{label}…\n", BUSY, bold=True)
-        threading.Thread(target=self._worker, args=(args,), daemon=True).start()
+        threading.Thread(target=self._worker, args=(cmd,), daemon=True).start()
 
-    def _worker(self, args: list[str]) -> None:
-        cmd = python_exe() + ["-m", "daily_sheet", *args]
+    def _worker(self, cmd: list[str]) -> None:
         flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         try:
             p = subprocess.Popen(

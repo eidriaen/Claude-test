@@ -499,12 +499,11 @@ class Renderer:
             self.footer(page)
             return
 
-        total = sum(c.budget or 0 for c in self.d.projects)
-        if total and page.idx == 1:
-            self.text(PAGE_W - M, y, f"pipeline {_kr(total)}", FB, 22, align="right")
         self.line(M, y + 16, PAGE_W - M, y + 16, 1.5)
 
         ry = y + 44
+        if page.idx == 1 and self.d.projects:
+            ry = self._stage_band(y + 28)
         for section, cards in page.items:
             sub = sum(c.budget or 0 for c in cards)
             self.rect(M, ry - 4, PAGE_W - 2 * M, 34, stroke=0, fill=Color(0.92, 0.92, 0.90))
@@ -536,6 +535,32 @@ class Renderer:
         if not page.items:
             self.text(M, ry + 30, "No cards on the board.", F, 24, GREY)
         self.footer(page)
+
+    def _stage_band(self, y: float) -> float:
+        """Three totals across the top: what is won, what is committed, and what
+        is still only possible. One summed pipeline number hid that distinction.
+
+        Returns the y to continue drawing from.
+        """
+        totals = _stage_totals(self.d.projects)
+        counts: dict[str, int] = {"active": 0, "signed": 0, "incoming": 0}
+        for c in self.d.projects:
+            counts[_stage(c.section)] += 1
+
+        cells = [("Active", totals["active"], counts["active"]),
+                 ("Signed", totals["signed"], counts["signed"]),
+                 ("Incoming", totals["incoming"], counts["incoming"])]
+        w = (PAGE_W - 2 * M) / 3
+        h = 96
+        for i, (label, amount, n) in enumerate(cells):
+            x = M + i * w
+            self.rect(x, y, w, h, stroke=1.5)
+            if i == 0:      # won work is the one to read first
+                self.rect(x, y, w, 6, stroke=0, fill=black)
+            self.text(x + 14, y + 30, label.upper(), F, 17, GREY)
+            self.text(x + 14, y + 62, _kr(amount) if amount else "—", FB, 28)
+            self.text(x + w - 14, y + 30, f"{n}", F, 17, GREY, align="right")
+        return y + h + 26
 
     def page_notes(self, page: PageSpec):
         self.c.bookmarkPage("sec-notes")
@@ -569,6 +594,26 @@ class Renderer:
             "regions": [r.to_json() for r in self.regions],
         }
         self.out_layout.write_text(json.dumps(layout, indent=2), encoding="utf-8")
+
+
+# Where each board section falls on the way to signed work. Matched on the
+# section name so renaming "Active" to "Active projects" still lands right, and
+# anything unrecognised counts as pipeline rather than being dropped from the
+# totals -- an unnoticed rename should understate nothing.
+def _stage(section: str) -> str:
+    low = section.lower()
+    if "active" in low:
+        return "active"
+    if "signed" in low:
+        return "signed"
+    return "incoming"
+
+
+def _stage_totals(cards) -> dict[str, float]:
+    out = {"active": 0.0, "signed": 0.0, "incoming": 0.0}
+    for c in cards:
+        out[_stage(c.section)] += c.budget or 0
+    return out
 
 
 def _kr(amount: float) -> str:
