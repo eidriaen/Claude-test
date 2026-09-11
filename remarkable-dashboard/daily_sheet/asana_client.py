@@ -77,20 +77,54 @@ class AsanaClient:
         return r.json()["data"]
 
     # -- the pipeline board -----------------------------------------------
+    def _paged(self, path: str, **params) -> list[dict]:
+        """Follow next_page. A single page caps at 100, and a workspace with
+        more projects than that would otherwise hide the one we want."""
+        params.setdefault("limit", 100)
+        url, out = f"{API}{path}", []
+        while url:
+            r = self._session.get(url, params=params or None, timeout=30)
+            r.raise_for_status()
+            body = r.json()
+            out.extend(body.get("data", []))
+            nxt = (body.get("next_page") or {}).get("uri")
+            url, params = (nxt, None) if nxt else (None, None)
+        return out
+
+    def all_projects(self) -> list[tuple[str, str, str]]:
+        """(gid, name, workspace gid) for every project this token can see."""
+        me = self._get("/users/me", opt_fields="workspaces.name")
+        out: list[tuple[str, str, str]] = []
+        for ws in me.get("workspaces", []):
+            for proj in self._paged(f"/workspaces/{ws['gid']}/projects",
+                                    opt_fields="name", archived="false"):
+                out.append((proj["gid"], (proj.get("name") or "").strip(), ws["gid"]))
+        return out
+
     def find_project(self, name: str) -> tuple[str, str] | None:
         """(project gid, workspace gid) for the board called `name`, or None.
 
-        Matched case-insensitively on a stripped name so 'Incoming + Active
-        Projects' still resolves after someone edits the capitalisation.
+        Tried in three passes, loosest last: exact ignoring case, then ignoring
+        punctuation and spacing, then substring. A board named "Incoming +
+        Active Projects" or "Incoming & active projects" should not need the
+        config edited to match, because the name in Asana is edited by people.
         """
         want = name.strip().lower()
-        me = self._get("/users/me", opt_fields="workspaces.name")
-        for ws in me.get("workspaces", []):
-            page = self._get(f"/workspaces/{ws['gid']}/projects",
-                             opt_fields="name", limit=100)
-            for proj in page:
-                if (proj.get("name") or "").strip().lower() == want:
-                    return proj["gid"], ws["gid"]
+        projects = self.all_projects()
+
+        for gid, pname, ws in projects:
+            if pname.lower() == want:
+                return gid, ws
+
+        def norm(v: str) -> str:
+            return "".join(ch for ch in v.lower() if ch.isalnum())
+
+        for gid, pname, ws in projects:
+            if norm(pname) == norm(want):
+                return gid, ws
+        for gid, pname, ws in projects:
+            if want in pname.lower() or norm(want) in norm(pname):
+                return gid, ws
         return None
 
     def board(self, project_gid: str) -> list[ProjectCard]:

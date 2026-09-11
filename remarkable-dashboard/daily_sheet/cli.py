@@ -195,8 +195,24 @@ def inspect_board(cfg: Config, name: str) -> int:
         print(f"\n  Asana error: {type(exc).__name__}: {exc}\n")
         return 1
     if not found:
-        print(f"\n  No board called {name!r} in your workspaces.")
-        print("  Check the exact name in Asana, then set ASANA_BOARD in .env.\n")
+        print(f"\n  No board matching {name!r}.\n")
+        try:
+            projects = client.all_projects()
+        except Exception as exc:  # noqa: BLE001
+            print(f"  Could not list your projects either: {exc}\n")
+            return 1
+        if not projects:
+            print("  This token cannot see any projects at all, which usually means")
+            print("  it was created in a different Asana account. Make a new token at")
+            print("  app.asana.com/0/my-apps while signed in as the right user.\n")
+            return 1
+        print(f"  {len(projects)} project(s) this token can see:\n")
+        for _gid, pname, _ws in sorted(projects, key=lambda p: p[1].lower()):
+            print(f"    {pname}")
+        print("\n  Copy the exact name into .env as:")
+        print("    ASANA_BOARD=<name>\n")
+        print("  If the board you want is not listed, the token cannot reach it —")
+        print("  open the board in Asana and check you are a member of it.\n")
         return 1
 
     gid, _ws = found
