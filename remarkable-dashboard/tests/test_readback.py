@@ -211,3 +211,25 @@ def test_a_weekend_event_is_flagged_rather_than_dropped(tmp_path):
     data = SheetData(TODAY, [ev], _ok(), [], _ok(), [], [], _ok(), IngestionReport())
     pdf, _ = render_sheet(data, tmp_path / "wk")
     assert pdf.exists(), "a weekend-only event must still render a sheet"
+
+
+def test_new_task_pickers_line_up_with_the_rows_above(sheet):
+    """The New tasks box sits under the task rows, so its pickers have to share
+    their columns -- they drifted apart when each computed its own x."""
+    by_page: dict[int, dict[str, set]] = {}
+    for r in sheet["regions"]:
+        if r.kind in ("prio3", "week2"):
+            by_page.setdefault(r.page, {}).setdefault(r.kind, set()).add(r.x0)
+
+    for page, kinds in by_page.items():
+        for kind, xs in kinds.items():
+            expected = 3 if kind == "prio3" else 2
+            assert len(xs) == expected, (
+                f"page {page} {kind} uses {len(xs)} columns, expected {expected} "
+                f"— rows and the New tasks box have drifted apart")
+
+
+def test_the_week_pages_cover_a_quarter():
+    from daily_sheet.render import WEEK_OFFSETS
+    assert WEEK_OFFSETS[0] == -1, "last week stays reachable"
+    assert WEEK_OFFSETS[-1] >= 13, "and at least three months ahead"

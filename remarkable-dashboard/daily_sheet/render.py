@@ -33,13 +33,18 @@ PBOX = 38              # selector box side (>= 44 tap target once its gap counts
 PRIO = ("High", "Medium", "Low")
 WEEKS = (("this", "TW"), ("next", "NW"))   # assign to "YYYY: Week ##"
 ROW_H = 72
-TODAY_ROW_H = 46       # priority rows on page 1
-TODAY_TASKS = 8        # how many the block shows
+TODAY_ROW_H = 56       # priority rows on page 1
+TODAY_TASKS = 10       # how many the block shows
+TODAY_DUE_COL = 170    # due column; priority is right-aligned just left of it
 PRIO_ROW_H = 84        # task rows carry the pickers, so they need more height
+TASK_DUE_COL = 140     # right-hand due column on the Tasks page
 NEW_BOX_LINES = 4      # minimum ruled lines in the New tasks box
 NEW_BOX_H = 4 * 78 + 30
 HOUR_FIRST, HOUR_LAST = 8, 17      # grid shows 08:00 … 18:00
 WEEK_DAYS = 5                      # Mon–Fri; weekend events are flagged, not drawn
+# Last week through thirteen ahead: a quarter of planning, which is as far out
+# as the pipeline board's dates tend to reach.
+WEEK_OFFSETS = tuple(range(-1, 14))
 
 DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 DAYS_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -140,8 +145,8 @@ class PageSpec:
 class Renderer:
     # Every task page ends with a New tasks box, so the row count is the same
     # throughout -- earlier pages no longer get to be fuller than the last.
-    TASK_ROWS_FULL = 10
-    TASK_ROWS_WITH_BOX = 10
+    TASK_ROWS_FULL = 14
+    TASK_ROWS_WITH_BOX = 14
     ASANA_ROWS = 20
     PROJECT_ROWS = 22           # section headers + cards per Projects page
 
@@ -157,7 +162,7 @@ class Renderer:
     # -- planning -------------------------------------------------------
     def _plan(self) -> list[PageSpec]:
         pages: list[PageSpec] = [PageSpec("today", 1)]
-        for off in (-1, 0, 1):
+        for off in WEEK_OFFSETS:
             pages.append(PageSpec("week", len(pages) + 1, week_offset=off))
 
         rest = list(self.d.asana_tasks)
@@ -386,7 +391,7 @@ class Renderer:
 
         # hour grid
         gy = y + 50
-        gh = 930
+        gh = 820
         if self.d.events_status.ok:
             self.hour_grid(M, gy, PAGE_W - 2 * M, gh, [d], [PAGE_W - 2 * M - 70])
             today_events = events_on(self.d.events, d)
@@ -417,30 +422,26 @@ class Renderer:
         self.text(PAGE_W - M, ty, "tick to complete", F, 18, GREY, align="right")
         self.line(M, ty + 12, PAGE_W - M, ty + 12, 1.5)
 
-        ry = ty + 26
+        ry = ty + 28
         rows = self._top_tasks(TODAY_TASKS)
+        prio_x = PAGE_W - M - TODAY_DUE_COL
         for a in rows:
             high = a.priority.lower() == "high"
-            self.checkbox(a.gid, page.n, M, ry + 8)
-            tx = M + BOX + 18
+            self.checkbox(a.gid, page.n, M, ry + 6)
+            tx = M + BOX + 20
 
-            tag = a.priority.upper()[:1] if a.priority else ""
+            label = a.priority.title() if a.priority else ""
             due = _due_label(a.due, self.d.today) if a.due else ""
-            right = due
-            rw = pdfmetrics.stringWidth(right, F, 19) + 24 if right else 0
+            name_w = prio_x - tx - 20
 
-            if tag:
-                # The letter carries the priority so a page of unmarked rows is
-                # still readable at a glance; the box beside it is the state.
-                self.rect(M + BOX + 2, ry + 10, 26, 26, stroke=1.2, color=GREY)
-                self.text(M + BOX + 15, ry + 30, tag, FB, 17, GREY, align="center")
-                tx = M + BOX + 40
-
-            self.text(tx, ry + 30, _fit(a.name, FB if high else F, 24,
-                                        PAGE_W - M - tx - rw), FB if high else F, 24)
-            if right:
+            self.text(tx, ry + 32, _fit(a.name, FB if high else F, 27, name_w),
+                      FB if high else F, 27)
+            if label:
+                self.text(prio_x, ry + 32, label, FB if high else F, 20,
+                          black if high else GREY, align="right")
+            if due:
                 overdue = a.due is not None and a.due < self.d.today
-                self.text(PAGE_W - M, ry + 30, right, FB if overdue else F, 19,
+                self.text(PAGE_W - M, ry + 32, due, FB if overdue else F, 20,
                           black if overdue else GREY, align="right")
             ry += TODAY_ROW_H
 
@@ -496,19 +497,29 @@ class Renderer:
         self.c.bookmarkPage(f"week{page.week_offset}")
         self.nav("week")
         y = CONTENT_TOP + 36
-        label = {-1: "Last week", 0: "This week", 1: "Next week"}[page.week_offset]
+        label = {-1: "Last week", 0: "This week", 1: "Next week"}.get(
+            page.week_offset, f"In {page.week_offset} weeks")
         iso = monday.isocalendar()
         self.text(PAGE_W / 2, y, f"{label}  ·  Week {iso.week}  ·  {_fmt_range(days[0], days[-1])}", FB, 30, align="center")
         # prev / next tap zones (top corners)
         zone_w, zone_h = 200, 64
-        if page.week_offset > -1:
+        if page.week_offset > WEEK_OFFSETS[0]:
             self.rect(M, y - 44, zone_w, zone_h, stroke=1.5, color=GREY)
             self.text(M + zone_w / 2, y, "‹ Prev", F, 24, align="center")
             self.link(f"week{page.week_offset - 1}", M, y - 44, zone_w, zone_h)
-        if page.week_offset < 1:
+        if page.week_offset < WEEK_OFFSETS[-1]:
             self.rect(PAGE_W - M - zone_w, y - 44, zone_w, zone_h, stroke=1.5, color=GREY)
             self.text(PAGE_W - M - zone_w / 2, y, "Next ›", F, 24, align="center")
             self.link(f"week{page.week_offset + 1}", PAGE_W - M - zone_w, y - 44, zone_w, zone_h)
+
+        # Cycling thirteen weeks one tap at a time is a long way back, so every
+        # page away from the present offers the way home.
+        if page.week_offset not in (0, 1):
+            hw = 150
+            hx = PAGE_W / 2 - hw / 2
+            self.rect(hx, y + 22, hw, 44, stroke=1.2, color=GREY)
+            self.text(PAGE_W / 2, y + 52, "This week", F, 19, GREY, align="center")
+            self.link("week0", hx, y + 22, hw, 44)
 
         if not self.d.events_status.ok:
             self.unavailable(y + 60, "Calendar", self.d.events_status)
@@ -560,6 +571,14 @@ class Renderer:
                            F, 18, PAGE_W - 2 * M), F, 18, GREY)
         self.footer(page)
 
+    def _task_columns(self) -> tuple[float, float]:
+        """(priority x, week x). Shared so the New tasks box lines up with the
+        rows above it -- they drifted apart when each computed its own."""
+        prio_w = 3 * PBOX + 2 * 8
+        week_w = 2 * PBOX + 8
+        week_x = PAGE_W - M - TASK_DUE_COL - week_w
+        return week_x - 16 - prio_w, week_x
+
     def page_tasks(self, page: PageSpec):
         """Asana tasks assigned to me. Ticking a box completes them in Asana."""
         if page.idx == 1:
@@ -576,12 +595,7 @@ class Renderer:
             self.footer(page)
             return
 
-        prio_w = 3 * PBOX + 2 * 8
-        week_w = 2 * PBOX + 8
-        due_col = 140
-        week_x = PAGE_W - M - due_col - week_w
-        prio_x = week_x - 16 - prio_w
-
+        prio_x, week_x = self._task_columns()
         self.priority_header(prio_x, y + 38)
         self.week_header(week_x, y + 38)
 
@@ -628,11 +642,7 @@ class Renderer:
         self.text(M, top - 12, "New tasks", FB, 26)
         self.text(PAGE_W - M, top - 12, "one per line  ·  goes to Asana", F, 17, GREY, align="right")
 
-        prio_w = 3 * PBOX + 2 * 8
-        week_w = 2 * PBOX + 8
-        week_x = PAGE_W - M - 14 - week_w
-        prio_x = week_x - 16 - prio_w
-
+        prio_x, week_x = self._task_columns()
         self.rect(M, top, PAGE_W - 2 * M, box_h, stroke=2)
         for i in range(1, lines):
             self.line(M, top + i * line_h, PAGE_W - M, top + i * line_h, 0.75, RULE)
