@@ -107,21 +107,22 @@ class App:
         for i in (0, 1):
             grid.columnconfigure(i, weight=1, uniform="b")
 
-        self._button(grid, 0, 0, "Sync Daily",
-                     "Reads the boxes you ticked → completes them in Asana",
+        self._button(grid, 0, 0, "Sync + Generate Daily",
+                     "Reads your ticks → completes them in Asana → rebuilds "
+                     "today's sheet without them → pushes it back",
+                     lambda: self.run(["generate"], "Syncing and rebuilding"), span=2)
+        self._button(grid, 1, 0, "Sync only",
+                     "Pushes ticks to Asana without touching the sheet",
                      lambda: self.run(["sync"], "Reading your ticks"))
-        self._button(grid, 0, 1, "Generate Daily",
-                     "Refreshes today's sheet from Asana + calendar",
-                     lambda: self.run(["generate"], "Building today's sheet"))
-        self._button(grid, 1, 0, "What's on the tablet",
-                     "Lists Daily/ and Archive/ — where your ticks live",
-                     lambda: self.run(["tablet"], "Listing"))
         self._button(grid, 1, 1, "Check Asana board",
                      "Shows the sections and fields the Projects page reads",
                      lambda: self.run(["board"], "Reading the board"))
-        self._button(grid, 2, 0, "Check connections",
+        self._button(grid, 2, 0, "What's on the tablet",
+                     "Lists Daily/ and Archive/ — where your ticks live",
+                     lambda: self.run(["tablet"], "Listing"))
+        self._button(grid, 2, 1, "Check connections",
                      "Tests rmapi, calendar, Asana and the API key",
-                     lambda: self.run(["doctor"], "Checking"), span=2)
+                     lambda: self.run(["doctor"], "Checking"))
 
         bar = ttk.Frame(self.root)
         bar.pack(fill="x", pady=(14, 6), **pad)

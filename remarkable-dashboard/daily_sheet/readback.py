@@ -95,6 +95,48 @@ def is_marked(img: Image.Image, r: Region, min_ratio: float = CHECK_MIN) -> bool
     return ink_ratio(img, r) >= min_ratio and ink_span(img, r) >= SPAN_MIN
 
 
+def form_checked(pdf: Path) -> set[str]:
+    """Ids whose AcroForm checkbox the viewer actually ticked.
+
+    The sheet carries a real form checkbox over every drawn box. Most e-ink
+    readers ignore PDF forms entirely, in which case this finds nothing and ink
+    density decides as before -- but where a viewer does honour them, a tap is
+    recorded state rather than something inferred from pixels, so it wins.
+    """
+    import ctypes
+
+    import pypdfium2 as pdfium
+    import pypdfium2.raw as raw
+
+    out: set[str] = set()
+    try:
+        doc = pdfium.PdfDocument(str(pdf))
+        doc.init_forms()
+    except Exception:  # noqa: BLE001 — no form layer is the normal case
+        return out
+
+    CHECKBOX = 2
+    try:
+        for page in doc:
+            for i in range(raw.FPDFPage_GetAnnotCount(page)):
+                annot = raw.FPDFPage_GetAnnot(page, i)
+                if raw.FPDFAnnot_GetFormFieldType(doc.formenv, annot) != CHECKBOX:
+                    continue
+                if not raw.FPDFAnnot_IsChecked(doc.formenv, annot):
+                    continue
+                length = raw.FPDFAnnot_GetFormFieldName(doc.formenv, annot, None, 0)
+                buf = ctypes.create_string_buffer(length * 2)
+                raw.FPDFAnnot_GetFormFieldName(
+                    doc.formenv, annot,
+                    ctypes.cast(buf, ctypes.POINTER(ctypes.c_ushort)), length)
+                name = buf.raw.decode("utf-16-le").rstrip("\x00")
+                if name.startswith("cb_"):
+                    out.add(name[3:])
+    except Exception:  # noqa: BLE001
+        return out
+    return out
+
+
 def crop(img: Image.Image, r: Region, pad: int = 4) -> Image.Image:
     return img.crop((max(r.x0 - pad, 0), max(r.y0 - pad, 0),
                      min(r.x1 + pad, img.width), min(r.y1 + pad, img.height)))
@@ -162,6 +204,17 @@ def read_marks(pdf: Path, layout_path: Path, api_key: str, debug_dir: Path | Non
     # A task can carry a checkbox on more than one page (a top-3 task appears on
     # Today *and* on its own page), so ticking either must still count once.
     seen: set[str] = set()
+
+    # A viewer that honours PDF forms gives us exact state; take it first, then
+    # let ink decide the rest. Ticking with the pen and tapping the same box
+    # must still count once, hence the shared `seen`.
+    for rid in sorted(form_checked(pdf)):
+        if rid not in seen:
+            seen.add(rid)
+            marks.checked.append(rid)
+    if seen:
+        marks.ink["_form_fields_read"] = len(seen)
+
     for r in (r for r in regions if r.kind == "check"):
         if r.page - 1 >= len(images):
             continue

@@ -229,6 +229,17 @@ class Renderer:
 
     def checkbox(self, rid: str, page: int, x, y):
         self.rect(x, y, BOX, BOX, stroke=2.5)
+        # Also lay an interactive AcroForm checkbox over the drawn one. If the
+        # viewer honours PDF forms, tapping it records real state we can read
+        # exactly; if it ignores them (which e-ink readers generally do), this
+        # is inert and the pen tick still works. Costs a few bytes to find out.
+        try:
+            self.c.acroForm.checkbox(
+                name=f"cb_{rid}", x=x, y=_Y(y + BOX), size=BOX,
+                buttonStyle="check", borderWidth=0, forceBorder=False,
+            )
+        except Exception:  # noqa: BLE001 — a form field is a bonus, never required
+            pass
         self.region(rid, "check", page, x, y, BOX, BOX)
 
     def priority_box(self, rid: str, page: int, x, y, current: int):
