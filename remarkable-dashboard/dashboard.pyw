@@ -114,11 +114,14 @@ class App:
                      "Refreshes today's sheet from Asana + calendar",
                      lambda: self.run(["generate"], "Building today's sheet"))
         self._button(grid, 1, 0, "What's on the tablet",
-                     "List Daily/ and Archive/ — where your ticks live",
+                     "Lists Daily/ and Archive/ — where your ticks live",
                      lambda: self.run(["tablet"], "Listing"))
-        self._button(grid, 1, 1, "Check connections",
-                     "Test rmapi, calendar, Asana and the API key",
-                     lambda: self.run(["doctor"], "Checking"))
+        self._button(grid, 1, 1, "Check Asana board",
+                     "Shows the sections and fields the Projects page reads",
+                     lambda: self.run(["board"], "Reading the board"))
+        self._button(grid, 2, 0, "Check connections",
+                     "Tests rmapi, calendar, Asana and the API key",
+                     lambda: self.run(["doctor"], "Checking"), span=2)
 
         bar = ttk.Frame(self.root)
         bar.pack(fill="x", pady=(14, 6), **pad)
@@ -138,9 +141,11 @@ class App:
         self.out.tag_configure("bold", font=tkfont.Font(
             family=self.f_mono.cget("family"), size=9, weight="bold"))
 
-    def _button(self, parent: ttk.Frame, r: int, c: int, label: str, hint: str, cmd) -> None:
+    def _button(self, parent: ttk.Frame, r: int, c: int, label: str, hint: str, cmd,
+                span: int = 1) -> None:
         cell = ttk.Frame(parent)
-        cell.grid(row=r, column=c, sticky="ew", padx=(0, 10) if c == 0 else (0, 0), pady=(0, 10))
+        cell.grid(row=r, column=c, columnspan=span, sticky="ew",
+                  padx=(0, 10) if c == 0 and span == 1 else (0, 0), pady=(0, 10))
         b = ttk.Button(cell, text=label, style="Big.TButton", command=cmd)
         b.pack(fill="x")
         ttk.Label(cell, text=hint, style="Muted.TLabel").pack(anchor="w", pady=(3, 0))
