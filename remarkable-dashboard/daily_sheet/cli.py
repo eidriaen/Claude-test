@@ -22,7 +22,7 @@ from pathlib import Path
 from .asana_client import load_asana, load_board
 from .calendar_ics import load_events
 from .config import Config, load_config
-from .models import IngestionReport, SectionStatus
+from .models import AsanaTask, IngestionReport, SectionStatus
 from .readback import Marks, read_marks, set_strip_dir
 from .remarkable import Rmapi, RmapiError
 from .render import SheetData, render_sheet
@@ -113,6 +113,10 @@ def apply_marks(marks: Marks, store: TaskStore, asana, today: date, report: Inge
         store.set_priority(rid, prio)
 
     by_gid = {t.gid: t for t in (asana_tasks or [])}
+    for gid, week in marks.set_week.items():
+        if gid in by_gid:
+            _assign_week(asana, gid, by_gid[gid].name, week, report)
+
     for gid, value in marks.set_priority.items():
         task = by_gid.get(gid)
         if task is None or task.priority.lower() == value.lower():
@@ -123,25 +127,87 @@ def apply_marks(marks: Marks, store: TaskStore, asana, today: date, report: Inge
         except Exception as exc:  # noqa: BLE001
             report.unreadable.append(f"priority for {task.name}: {exc}")
 
+    # Each handwritten line sits on a ruled row with its own pickers, so pair
+    # them up. A mismatch means we cannot say which boxes belong to which line,
+    # and guessing would file a task under a priority nobody chose -- so the
+    # text is still captured, just without them.
+    rows = marks.new_task_rows
+    paired = len(rows) == len([l for l in marks.new_tasks if parse_pen_line(l)])
+
+    idx = 0
     for line in marks.new_tasks:
         parsed = parse_pen_line(line)
         if not parsed:
             continue
         title, prio = parsed
+        row = rows[idx] if paired and idx < len(rows) else None
+        idx += 1
         if title.strip().lower() in seen:
             continue
+
         # Everything lives in Asana now; tasks.json only keeps a local record so
         # a handwritten line is not lost if the Asana write fails.
         store.add(title, prio, source="pen", today=today)
-        if asana is not None:
-            try:
-                asana.create_task(title)
-            except Exception as exc:  # noqa: BLE001
-                report.unreadable.append(f"could not create '{title}' in Asana: {exc}")
-                continue
+        if asana is None:
+            report.added.append(title)
+            continue
+        try:
+            gid = asana.create_task(title)
+        except Exception as exc:  # noqa: BLE001
+            report.unreadable.append(f"could not create '{title}' in Asana: {exc}")
+            continue
         report.added.append(title)
 
+        if row is None or gid is None:
+            continue
+        picked = marks.set_priority.get(f"new{row}", "")
+        if picked:
+            try:
+                asana.set_priority(AsanaTask(gid=gid, name=title,
+                                             priority_field=_priority_field(asana_tasks),
+                                             priority_options=_priority_options(asana_tasks)),
+                                   picked)
+            except Exception as exc:  # noqa: BLE001
+                report.unreadable.append(f"priority for '{title}': {exc}")
+        week = marks.set_week.get(f"new{row}", "")
+        if week:
+            _assign_week(asana, gid, title, week, report)
+
     report.unreadable.extend(str(p) for p in marks.unreadable)
+
+
+def _priority_field(tasks) -> str:
+    """The Priority field gid, taken from any task that has one.
+
+    A task we just created carries no custom fields yet, so borrow the gid from
+    a task already on the board -- the field is per project, not per task.
+    """
+    for t in (tasks or []):
+        if t.priority_field:
+            return t.priority_field
+    return ""
+
+
+def _priority_options(tasks) -> dict:
+    for t in (tasks or []):
+        if t.priority_options:
+            return t.priority_options
+    return {}
+
+
+def _assign_week(asana, gid: str, title: str, week: str, report: IngestionReport) -> None:
+    """Add a task to the "YYYY: Week ##" project for this or next week."""
+    if asana is None:
+        return
+    try:
+        pgid, name = asana.week_project(0 if week == "this" else 1)
+        if not pgid:
+            report.unreadable.append(f"no Asana project called '{name}' — '{title}' not filed")
+            return
+        asana.add_to_project(gid, pgid)
+        report.weeks.append(f"{title} -> {name}")
+    except Exception as exc:  # noqa: BLE001
+        report.unreadable.append(f"week for '{title}': {exc}")
 
 
 def write_notes(cfg: Config, marks_notes: str, day: date) -> None:

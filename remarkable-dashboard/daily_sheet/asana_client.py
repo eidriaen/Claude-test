@@ -248,6 +248,38 @@ class AsanaClient:
         r = self._session.put(f"{API}/tasks/{gid}", json={"data": {"completed": True}}, timeout=20)
         r.raise_for_status()
 
+    def week_project(self, offset: int) -> tuple[str, str]:
+        """(gid, name) of the "YYYY: Week ##" project, or ("", expected name).
+
+        Never created. Making projects in someone's workspace is a much larger
+        side effect than this tool should take on its own, so a missing week is
+        reported and the task is left where it is.
+        """
+        target = self.today + timedelta(weeks=offset)
+        iso = target.isocalendar()
+        want = f"{iso.year}: Week {iso.week:02d}"
+
+        def norm(v: str) -> str:
+            return "".join(ch for ch in v.lower() if ch.isalnum())
+
+        try:
+            projects = self.all_projects()
+        except Exception:  # noqa: BLE001
+            return "", want
+        # Match on digits so "2026: Week 38", "2026: week 38" and "2026 Week 38"
+        # all resolve -- the name is typed by a person every week.
+        for gid, name, _ws in projects:
+            if norm(name) == norm(want) or norm(name) == norm(f"{iso.year}: Week {iso.week}"):
+                return gid, name
+        return "", want
+
+    def add_to_project(self, task_gid: str, project_gid: str) -> None:
+        if self.cfg.use_fixtures or self.cfg.dry_run:
+            return
+        r = self._session.post(f"{API}/tasks/{task_gid}/addProject", timeout=20,
+                               json={"data": {"project": project_gid}})
+        r.raise_for_status()
+
     def set_priority(self, task: AsanaTask, value: str) -> None:
         """Set the Priority enum on one task. No-op if the board has no such field."""
         if self.cfg.use_fixtures or self.cfg.dry_run:

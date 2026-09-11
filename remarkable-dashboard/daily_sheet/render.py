@@ -29,10 +29,15 @@ NAV_H = 72             # nav bar tap height (≥ 44)
 NAV_Y = 40
 CONTENT_TOP = NAV_Y + NAV_H + 40
 BOX = 44               # checkbox / priority box side
-PBOX = 40              # H/M/L selector box side (still >= 44 with its gap)
+PBOX = 38              # selector box side (>= 44 tap target once its gap counts)
 PRIO = ("High", "Medium", "Low")
+WEEKS = (("this", "TW"), ("next", "NW"))   # assign to "YYYY: Week ##"
 ROW_H = 72
-PRIO_ROW_H = 84        # task rows carry the H/M/L picker, so they need more height
+TODAY_ROW_H = 46       # priority rows on page 1
+TODAY_TASKS = 8        # how many the block shows
+PRIO_ROW_H = 84        # task rows carry the pickers, so they need more height
+NEW_BOX_LINES = 4      # minimum ruled lines in the New tasks box
+NEW_BOX_H = 4 * 78 + 30
 HOUR_FIRST, HOUR_LAST = 8, 17      # grid shows 08:00 … 18:00
 WEEK_DAYS = 5                      # Mon–Fri; weekend events are flagged, not drawn
 
@@ -133,8 +138,10 @@ class PageSpec:
 
 # --- renderer ---------------------------------------------------------------
 class Renderer:
-    TASK_ROWS_FULL = 17          # rows when the page has no "New tasks" box
-    TASK_ROWS_WITH_BOX = 11
+    # Every task page ends with a New tasks box, so the row count is the same
+    # throughout -- earlier pages no longer get to be fuller than the last.
+    TASK_ROWS_FULL = 10
+    TASK_ROWS_WITH_BOX = 10
     ASANA_ROWS = 20
     PROJECT_ROWS = 22           # section headers + cards per Projects page
 
@@ -155,7 +162,7 @@ class Renderer:
 
         rest = list(self.d.asana_tasks)
         chunks: list[list] = []
-        while len(rest) > self.TASK_ROWS_WITH_BOX:
+        while len(rest) > self.TASK_ROWS_FULL:
             chunks.append(rest[: self.TASK_ROWS_FULL])
             rest = rest[self.TASK_ROWS_FULL:]
         chunks.append(rest)
@@ -257,6 +264,9 @@ class Renderer:
         self.region(rid, "check", page, x, y, BOX, BOX)
 
     def priority_picker(self, task, page: int, x, y) -> float:
+        return self.priority_picker_at(task.gid, page, x, y, task.priority)
+
+    def priority_picker_at(self, rid: str, page: int, x, y, current: str = "") -> float:
         """Three boxes -- H M L -- one per Asana priority. Returns the width used.
 
         The task's current priority is shown by a bar *under* its box rather
@@ -271,10 +281,31 @@ class Renderer:
             # The H/M/L letters live in a column header, not in the boxes: ink
             # inside a box is exactly what read-back measures, so a printed
             # glyph there reads as a mark and every row arrives ambiguous.
-            if task.priority.lower() == name.lower():
+            if current.lower() == name.lower():
                 self.rect(bx, y + PBOX + 4, PBOX, 5, stroke=0, fill=black)
-            self.region(f"{task.gid}|{name}", "prio3", page, bx, y, PBOX, PBOX)
+            self.region(f"{rid}|{name}", "prio3", page, bx, y, PBOX, PBOX)
         return 3 * PBOX + 2 * gap
+
+    def week_picker(self, rid: str, page: int, x, y, current: str = "") -> float:
+        """Two boxes -- this week, next week -- assigning to the week project.
+
+        Marked state shows as a bar under the box for the same reason as the
+        priority picker: ink inside a box is what read-back measures, so drawing
+        the current state there would read as a fresh choice every run.
+        """
+        gap = 8
+        for i, (key, _label) in enumerate(WEEKS):
+            bx = x + i * (PBOX + gap)
+            self.rect(bx, y, PBOX, PBOX, stroke=1.5, color=GREY)
+            if current == key:
+                self.rect(bx, y + PBOX + 4, PBOX, 5, stroke=0, fill=black)
+            self.region(f"{rid}|{key}", "week2", page, bx, y, PBOX, PBOX)
+        return len(WEEKS) * PBOX + (len(WEEKS) - 1) * gap
+
+    def week_header(self, x, y) -> None:
+        gap = 8
+        for i, (_key, label) in enumerate(WEEKS):
+            self.text(x + i * (PBOX + gap) + PBOX / 2, y, label, FB, 17, GREY, align="center")
 
     def priority_header(self, x, y) -> None:
         gap = 10
@@ -377,43 +408,59 @@ class Renderer:
         else:
             self.unavailable(gy, "Calendar", self.d.events_status)
 
-        # top-3 priorities
-        ty = gy + gh + 50
-        label = "High priority" if any(
-            a.priority.lower() == "high" for a in self.d.asana_tasks) else "Most urgent"
-        self.text(M, ty, label, FB, 28)
+        # Priorities. The old block showed three and was followed by a report
+        # on yesterday's sheet -- but that report says what already happened,
+        # and the page is read to decide what to do next. The space goes to
+        # more of the list instead.
+        ty = gy + gh + 44
+        self.text(M, ty, "Priorities", FB, 28)
+        self.text(PAGE_W - M, ty, "tick to complete", F, 18, GREY, align="right")
         self.line(M, ty + 12, PAGE_W - M, ty + 12, 1.5)
-        ry = ty + 30
-        for tid, label, tag in self._top3()[:3]:
-            self.checkbox(tid, page.n, M, ry + 12)
-            self.text(M + BOX + 20, ry + 44, _fit(label, F, 26, PAGE_W - 2 * M - BOX - 260), F, 26)
-            self.text(PAGE_W - M, ry + 44, tag, F, 20, GREY, align="right")
-            ry += ROW_H
-        if not self._top3():
-            self.text(M, ry + 40, "Nothing open.", F, 24, GREY)
 
-        # ingestion report
-        iy = max(ry + 40, PAGE_H - 330)
-        r = self.d.report
-        self.text(M, iy, "Yesterday's sheet", FB, 28)
-        self.line(M, iy + 12, PAGE_W - M, iy + 12, 1.5)
-        self.text(M, iy + 52, r.note or r.summary(), F, 24)
-        if r.note and (r.completed or r.added or r.unreadable):
-            self.text(M, iy + 86, r.summary(), F, 24)
-        if self.d.unreadable_pngs:
-            sy = iy + 100
-            self.text(M, sy, "Couldn't read — please rewrite:", F, 20, GREY)
-            sy += 12
-            for png in self.d.unreadable_pngs[:3]:
-                try:
-                    self.c.drawImage(str(png), M, _Y(sy + 56), width=PAGE_W - 2 * M, height=56,
-                                     preserveAspectRatio=True, anchor="nw")
-                except Exception:  # noqa: BLE001 — a bad strip must not sink the sheet
-                    pass
-                sy += 62
+        ry = ty + 26
+        rows = self._top_tasks(TODAY_TASKS)
+        for a in rows:
+            high = a.priority.lower() == "high"
+            self.checkbox(a.gid, page.n, M, ry + 8)
+            tx = M + BOX + 18
+
+            tag = a.priority.upper()[:1] if a.priority else ""
+            due = _due_label(a.due, self.d.today) if a.due else ""
+            right = due
+            rw = pdfmetrics.stringWidth(right, F, 19) + 24 if right else 0
+
+            if tag:
+                # The letter carries the priority so a page of unmarked rows is
+                # still readable at a glance; the box beside it is the state.
+                self.rect(M + BOX + 2, ry + 10, 26, 26, stroke=1.2, color=GREY)
+                self.text(M + BOX + 15, ry + 30, tag, FB, 17, GREY, align="center")
+                tx = M + BOX + 40
+
+            self.text(tx, ry + 30, _fit(a.name, FB if high else F, 24,
+                                        PAGE_W - M - tx - rw), FB if high else F, 24)
+            if right:
+                overdue = a.due is not None and a.due < self.d.today
+                self.text(PAGE_W - M, ry + 30, right, FB if overdue else F, 19,
+                          black if overdue else GREY, align="right")
+            ry += TODAY_ROW_H
+
+        if not rows:
+            self.text(M, ry + 30, "Nothing open.", F, 24, GREY)
         self.footer(page)
 
-    def _top3(self) -> list[tuple[str, str, str]]:
+    def _top_tasks(self, n: int) -> list:
+        """The n tasks worth seeing first: High, then Medium, then Low.
+
+        Filling down the priorities rather than showing only High means the
+        block is the same height every day -- a page whose shape changes with
+        how much you happened to mark is harder to read at a glance.
+        """
+        return sorted(
+            self.d.asana_tasks,
+            key=lambda a: (a.rank(), a.due is None, a.due or date.max, a.name.lower()),
+        )[:n]
+
+    def _top3_unused(self) -> list[tuple[str, str, str]]:
         """(region id, label, tag) across both lists. Score: lower is more urgent."""
         high = [a for a in self.d.asana_tasks if a.priority.lower() == "high"]
         if high:
@@ -480,10 +527,10 @@ class Renderer:
         hidden = [ev for ev in in_week
                   if ev.start.weekday() >= WEEK_DAYS
                   or (not ev.all_day and _outside_grid(ev, ev.start.date()))]
-        if hidden:
-            names = ", ".join(_fit(ev.title, F, 18, 240) for ev in hidden[:2])
-            more = f" +{len(hidden) - 2}" if len(hidden) > 2 else ""
-            self.text(PAGE_W - M, y + 26, f"not shown: {names}{more}", F, 18, GREY, align="right")
+        # Drawn at the foot rather than the header: it is a footnote about the
+        # grid, and in the corner it competed with the week title for the first
+        # glance while saying something far less important.
+        note_h = 34 if hidden else 0
 
         # day headers + all-day strip
         hy = y + 40
@@ -499,8 +546,18 @@ class Renderer:
                 self.text(x + cw / 2, hy + 80, _fit(" · ".join(ev.title for ev in all_day), F, 16, cw - 8), F, 16, GREY, align="center")
             x += cw
         gy = hy + 96
-        gh = PAGE_H - 60 - gy
+        gh = PAGE_H - 60 - gy - note_h
         self.hour_grid(M, gy, PAGE_W - 2 * M, gh, days, col_w, label_col=label_col)
+
+        if hidden:
+            parts = []
+            for ev in hidden[:3]:
+                when = "all day" if ev.all_day else f"{ev.start.astimezone(TZ):%a %H:%M}"
+                parts.append(f"{when} {ev.title}")
+            more = f"  +{len(hidden) - 3} more" if len(hidden) > 3 else ""
+            self.text(M, gy + gh + 24,
+                      _fit("Not on the grid:  " + "   ·   ".join(parts) + more,
+                           F, 18, PAGE_W - 2 * M), F, 18, GREY)
         self.footer(page)
 
     def page_tasks(self, page: PageSpec):
@@ -511,7 +568,7 @@ class Renderer:
         y = CONTENT_TOP + 36
         title = "Tasks" + (f"  {page.idx}/{page.total}" if page.total > 1 else "")
         self.text(M, y, title, FB, 36)
-        self.text(PAGE_W - M, y, "tick = complete in Asana", F, 18, GREY, align="right")
+        self.text(PAGE_W - M, y, "tick = done  ·  TW/NW = this/next week", F, 18, GREY, align="right")
         self.line(M, y + 16, PAGE_W - M, y + 16, 1.5)
 
         if not self.d.asana_status.ok:
@@ -519,18 +576,22 @@ class Renderer:
             self.footer(page)
             return
 
-        pick_w = 3 * PBOX + 2 * 10
-        due_col = 150
-        pick_x = PAGE_W - M - due_col - pick_w
-        if any(a.priority_options for a in page.items):
-            self.priority_header(pick_x, y + 38)
+        prio_w = 3 * PBOX + 2 * 8
+        week_w = 2 * PBOX + 8
+        due_col = 140
+        week_x = PAGE_W - M - due_col - week_w
+        prio_x = week_x - 16 - prio_w
+
+        self.priority_header(prio_x, y + 38)
+        self.week_header(week_x, y + 38)
+
         ry = y + 48
         for a in page.items:
             overdue = a.due is not None and a.due < self.d.today
             high = a.priority.lower() == "high"
             self.checkbox(a.gid, page.n, M, ry + 16)
-            tx = M + BOX + 20
-            name_w = PAGE_W - M - tx - pick_w - due_col - 40
+            tx = M + BOX + 18
+            name_w = prio_x - tx - 16
             self.text(tx, ry + 36, _fit(a.name, FB if (overdue or high) else F, 25, name_w),
                       FB if (overdue or high) else F, 25)
             if a.project:
@@ -540,27 +601,52 @@ class Renderer:
             self.text(PAGE_W - M, ry + 44, due, FB if overdue else F, 20,
                       black if overdue else GREY, align="right")
             if a.priority_options:
-                self.priority_picker(a, page.n, pick_x, ry + 12)
+                self.priority_picker(a, page.n, prio_x, ry + 12)
+            self.week_picker(a.gid, page.n, week_x, ry + 12, a.week)
 
             self.line(M, ry + PRIO_ROW_H, PAGE_W - M, ry + PRIO_ROW_H, 0.75, RULE)
             ry += PRIO_ROW_H
+
         if not page.items and page.idx == 1:
             self.text(M, ry + 44, "Nothing assigned to you.", F, 24, GREY)
             ry += ROW_H
 
-        if page.last:
-            by = max(ry + 50, PAGE_H - 60 - 6 * 80 - 60)
-            self.text(M, by, "New tasks", FB, 28)
-            self.text(PAGE_W - M, by, "one per line  ·  goes to Asana", F, 18, GREY, align="right")
-            box_top = by + 20
-            box_h = PAGE_H - 60 - box_top
-            lines = max(6, int(box_h // 80))
-            line_h = box_h / lines
-            self.rect(M, box_top, PAGE_W - 2 * M, box_h, stroke=2)
-            for i in range(1, lines):
-                self.line(M, box_top + i * line_h, PAGE_W - M, box_top + i * line_h, 0.75, RULE)
-            self.region("newtasks", "newtasks", page.n, M, box_top, PAGE_W - 2 * M, box_h, int(line_h))
+        self._new_tasks_box(page, max(ry + 24, PAGE_H - 60 - NEW_BOX_H))
         self.footer(page)
+
+    def _new_tasks_box(self, page: PageSpec, top: float) -> None:
+        """Ruled lines for handwritten tasks, each with its own pickers.
+
+        Every task page carries one. Writing a task down should not mean
+        flipping to the last page first, and the rows this costs are cheaper
+        than the friction of not having it where you are.
+        """
+        box_h = PAGE_H - 60 - top
+        lines = max(NEW_BOX_LINES, int(box_h // 78))
+        line_h = box_h / lines
+
+        self.text(M, top - 12, "New tasks", FB, 26)
+        self.text(PAGE_W - M, top - 12, "one per line  ·  goes to Asana", F, 17, GREY, align="right")
+
+        prio_w = 3 * PBOX + 2 * 8
+        week_w = 2 * PBOX + 8
+        week_x = PAGE_W - M - 14 - week_w
+        prio_x = week_x - 16 - prio_w
+
+        self.rect(M, top, PAGE_W - 2 * M, box_h, stroke=2)
+        for i in range(1, lines):
+            self.line(M, top + i * line_h, PAGE_W - M, top + i * line_h, 0.75, RULE)
+
+        # The writing area stops short of the pickers so a long task title does
+        # not run its own ink into the boxes and read as a choice.
+        self.region("newtasks", "newtasks", page.n, M, top,
+                    prio_x - M - 12, box_h, int(line_h))
+
+        box_y = (line_h - PBOX) / 2
+        for i in range(lines):
+            ly = top + i * line_h + box_y
+            self.priority_picker_at(f"new{i}", page.n, prio_x, ly)
+            self.week_picker(f"new{i}", page.n, week_x, ly)
 
     def page_projects(self, page: PageSpec):
         """The pipeline board, grouped by section, in board order.

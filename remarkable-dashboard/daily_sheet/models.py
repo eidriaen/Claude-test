@@ -68,6 +68,7 @@ class AsanaTask:
     priority_field: str = ""                 # custom field gid
     priority_options: dict = field(default_factory=dict)   # name -> option gid
     project_gids: list = field(default_factory=list)       # to exclude board cards
+    week: str = ""                                         # "this" | "next" | ""
 
     def rank(self) -> int:
         """0 High, 1 Medium, 2 Low, 3 unset — for sorting."""
@@ -110,6 +111,7 @@ class IngestionReport:
     completed_asana: list[str] = field(default_factory=list)
     added: list[str] = field(default_factory=list)
     priorities: list[str] = field(default_factory=list)   # "task -> High"
+    weeks: list[str] = field(default_factory=list)        # "task -> 2026: Week 38"
     unreadable: list[str] = field(default_factory=list)   # paths to PNG strips
     note: str = ""                                          # e.g. "no sheet found for yesterday"
 
@@ -121,6 +123,8 @@ class IngestionReport:
         parts = [f"Completed {self.completed}"]
         if self.priorities:
             parts.append(f"Reprioritised {len(self.priorities)}")
+        if self.weeks:
+            parts.append(f"Filed {len(self.weeks)}")
         added = f"Added {len(self.added)}"
         if self.added:
             added += " (" + ", ".join(self.added[:4]) + (", …" if len(self.added) > 4 else "") + ")"

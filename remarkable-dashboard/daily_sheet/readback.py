@@ -40,6 +40,8 @@ class Marks:
     checked: list[str] = field(default_factory=list)          # region ids
     priorities: dict[str, int] = field(default_factory=dict)  # region id -> 1|2|3
     set_priority: dict[str, str] = field(default_factory=dict)  # task gid -> High|Medium|Low
+    set_week: dict[str, str] = field(default_factory=dict)      # task gid -> this|next
+    new_task_rows: list = field(default_factory=list)           # ruled rows that carry writing
     new_tasks: list[str] = field(default_factory=list)        # raw lines, unparsed
     notes: str = ""
     unreadable: list = field(default_factory=list)            # PNG strips, or a note
@@ -247,6 +249,26 @@ def read_marks(pdf: Path, layout_path: Path, api_key: str, debug_dir: Path | Non
             continue
         marks.set_priority[gid] = found[0][1]
 
+    # 1c. this-week / next-week pickers. Same ambiguity rule as the priority
+    # ones: marking both is a change of mind, and picking one would silently
+    # file the task into a week the user did not choose.
+    weeks: dict[str, list[tuple[float, str]]] = {}
+    for r in (r for r in regions if r.kind == "week2"):
+        if r.page - 1 >= len(images) or "|" not in r.id:
+            continue
+        rid, key = r.id.rsplit("|", 1)
+        ratio = ink_ratio(images[r.page - 1], r)
+        marks.ink[f"week2:{r.id}"] = round(ratio, 4)
+        if ratio >= CHECK_MIN:
+            weeks.setdefault(rid, []).append((ratio, key))
+
+    for rid, found in weeks.items():
+        found.sort(reverse=True)
+        if len(found) > 1 and found[0][0] < found[1][0] * 1.6:
+            marks.unreadable.append(f"week for {rid}: both marked")
+            continue
+        marks.set_week[rid] = found[0][1]
+
     # 2. priority boxes — ink gate first, then one digit through Claude
     for r in (r for r in regions if r.kind == "priority"):
         if r.page - 1 >= len(images):
@@ -286,8 +308,28 @@ def read_marks(pdf: Path, layout_path: Path, api_key: str, debug_dir: Path | Non
             marks.notes = text
         else:
             marks.new_tasks = _split_task_lines(text, region_img, r, marks)
+            marks.new_task_rows = _inked_rows(img, r)
 
     return marks
+
+
+def _inked_rows(img: Image.Image, r: Region) -> list[int]:
+    """Indices of the ruled rows that have writing on them.
+
+    The transcription comes back as a list of lines with no idea which row each
+    came from, but the priority and week boxes sit beside specific rows. Pairing
+    them needs to know which rows were actually used -- writing on rows 1 and 3
+    must not pick up the boxes from rows 0 and 1.
+    """
+    if not r.line_height:
+        return []
+    rows, n = [], max(1, (r.y1 - r.y0) // r.line_height)
+    for i in range(n):
+        band = Region(r.id, r.kind, r.page, r.x0, r.y0 + i * r.line_height,
+                      r.x1, r.y0 + (i + 1) * r.line_height)
+        if ink_ratio(img, band, inset=6) >= 0.004:
+            rows.append(i)
+    return rows
 
 
 def _split_task_lines(text: str, region_img: Image.Image, r: Region, marks: Marks) -> list[str]:
