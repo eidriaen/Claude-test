@@ -6,3 +6,7 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .venv/
+
+# rmapi auth token, if ever copied into the project
+rmapi.conf
+.rmapi

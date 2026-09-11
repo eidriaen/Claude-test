@@ -85,9 +85,24 @@ C:\tools\rmapi.exe
 ```
 
 It asks for a one-time code from **https://my.remarkable.com/device/desktop/connect**.
+Check that page is showing the account you actually want before copying the code.
+
 The token it writes is per-user, so pair it as the same Windows user the
 scheduled task runs as — otherwise the task authenticates as nobody and the
 push fails.
+
+**If you pair the wrong account**, delete the token and start over:
+
+```powershell
+Remove-Item "$env:APPDATA\rmapi\rmapi.conf"     # Windows
+rm ~/.rmapi                                      # macOS / Linux
+```
+
+Then revoke the device at my.remarkable.com → Settings → Devices. Deleting the
+file stops your machine using the token; only revoking invalidates it.
+
+> The Windows config path is `%APPDATA%\rmapi\rmapi.conf`, not `~/.rmapi` as on
+> Unix. `rmapi.conf` holds live auth tokens — treat it like a password file.
 
 Then verify it can do all four things this depends on, because rmapi has broken
 across firmware updates before (SCOPE §6.2):
