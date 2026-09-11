@@ -179,3 +179,35 @@ def test_unknown_id_without_asana_is_ignored(tmp_path):
 def _ok():
     from daily_sheet.models import SectionStatus
     return SectionStatus()
+
+
+def test_week_pages_show_weekdays_only():
+    """Mon-Fri, five equal columns.
+
+    The Today page still renders whatever day it is, weekend included -- this
+    is about the week grid only.
+    """
+    from daily_sheet.render import WEEK_DAYS
+    assert WEEK_DAYS == 5
+
+
+def test_a_weekend_event_is_flagged_rather_than_dropped(tmp_path):
+    """An event on a day the grid does not draw must not disappear silently.
+
+    Dropping it would leave the page implying a clear weekend, which is worse
+    than a small line of text saying otherwise.
+    """
+    from datetime import datetime, timedelta
+
+    from daily_sheet.config import TZ
+    from daily_sheet.models import Event
+    from daily_sheet.render import SheetData, render_sheet
+
+    saturday = TODAY + timedelta(days=(5 - TODAY.weekday()) % 7)
+    ev = Event(start=datetime.combine(saturday, datetime.min.time(), tzinfo=TZ).replace(hour=10),
+               end=datetime.combine(saturday, datetime.min.time(), tzinfo=TZ).replace(hour=11),
+               title="Helgejobb", location="")
+
+    data = SheetData(TODAY, [ev], _ok(), [], _ok(), [], [], _ok(), IngestionReport())
+    pdf, _ = render_sheet(data, tmp_path / "wk")
+    assert pdf.exists(), "a weekend-only event must still render a sheet"

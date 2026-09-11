@@ -34,6 +34,7 @@ PRIO = ("High", "Medium", "Low")
 ROW_H = 72
 PRIO_ROW_H = 84        # task rows carry the H/M/L picker, so they need more height
 HOUR_FIRST, HOUR_LAST = 7, 20      # grid shows 07:00 … 21:00
+WEEK_DAYS = 5                      # Mon–Fri; weekend events are flagged, not drawn
 
 DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 DAYS_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -419,7 +420,7 @@ class Renderer:
     def page_week(self, page: PageSpec):
         today = self.d.today
         monday = today - timedelta(days=today.weekday()) + timedelta(weeks=page.week_offset)
-        days = [monday + timedelta(days=i) for i in range(7)]
+        days = [monday + timedelta(days=i) for i in range(WEEK_DAYS)]
         if page.week_offset == 0:
             self.c.bookmarkPage("sec-week")
         self.c.bookmarkPage(f"week{page.week_offset}")
@@ -444,11 +445,20 @@ class Renderer:
             self.footer(page)
             return
 
-        # column widths: weekend 0.6×
         label_col = 70
         usable = PAGE_W - 2 * M - label_col
-        unit = usable / (5 + 2 * 0.6)
-        col_w = [unit if d.weekday() < 5 else unit * 0.6 for d in days]
+        col_w = [usable / len(days)] * len(days)
+
+        # Anything falling on a day the grid does not draw would vanish without
+        # trace, so say it is there rather than let the page imply an empty
+        # weekend. Rare, but a dropped event is worse than a small line of text.
+        hidden = [ev for ev in self.d.events
+                  if monday <= ev.start.date() <= monday + timedelta(days=6)
+                  and ev.start.weekday() >= WEEK_DAYS]
+        if hidden:
+            names = ", ".join(_fit(ev.title, F, 18, 260) for ev in hidden[:2])
+            more = f" +{len(hidden) - 2}" if len(hidden) > 2 else ""
+            self.text(PAGE_W - M, y + 26, f"weekend: {names}{more}", F, 18, GREY, align="right")
 
         # day headers + all-day strip
         hy = y + 40
