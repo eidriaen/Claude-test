@@ -137,13 +137,57 @@ def test_second_run_is_refused_while_one_is_going(server):
     assert "still running" in json.loads(body)["error"]
 
 
-def test_generated_token_when_env_has_none(monkeypatch):
+def test_generated_token_when_env_has_none(monkeypatch, tmp_path):
     """No WEB_TOKEN must not mean no lock."""
     import dotenv
     monkeypatch.setattr(dotenv, "load_dotenv", lambda *a, **k: None)
+    monkeypatch.setattr(serve, "HERE", tmp_path)
     monkeypatch.delenv("WEB_TOKEN", raising=False)
     token, generated = serve.load_token()
     assert generated and len(token) >= 12
+
+
+def test_env_is_read_without_dotenv_installed(monkeypatch, tmp_path):
+    """A failed `pip install` must not silently ignore the token in .env.
+
+    It did, and from the phone it looked identical to typing the token wrong:
+    the server invented a new one every restart and said nothing.
+    """
+    (tmp_path / ".env").write_text(
+        "# comment\nASANA_PAT=abc\nWEB_TOKEN = from-the-file \nOTHER=x\n",
+        encoding="utf-8")
+    monkeypatch.setattr(serve, "HERE", tmp_path)
+    monkeypatch.delenv("WEB_TOKEN", raising=False)
+
+    import builtins
+    real_import = builtins.__import__
+
+    def no_dotenv(name, *a, **kw):
+        if name == "dotenv":
+            raise ImportError("no dotenv")
+        return real_import(name, *a, **kw)
+
+    monkeypatch.setattr(builtins, "__import__", no_dotenv)
+    token, generated = serve.load_token()
+    assert (token, generated) == ("from-the-file", False)
+
+
+@pytest.mark.parametrize("line, want", [
+    ('WEB_TOKEN="quoted"', "quoted"),
+    ("WEB_TOKEN='single'", "single"),
+    ("export WEB_TOKEN=exported", "exported"),
+    ("WEB_TOKEN=", ""),
+    ("#WEB_TOKEN=commented", ""),
+    ("WEB_TOKEN_OTHER=near-miss", ""),
+])
+def test_env_file_parsing(tmp_path, line, want):
+    (tmp_path / ".env").write_text(line + "\n", encoding="utf-8")
+    assert serve.env_file_value("WEB_TOKEN", tmp_path / ".env") == want
+
+
+def test_token_is_trimmed_on_the_way_in(server):
+    """Phones paste with a trailing space more often than anyone admits."""
+    assert get(server + "/status", token=TOKEN + " ")[0] == 200
 
 
 def test_summary_prefers_the_result_line():

@@ -98,10 +98,37 @@ def load_token() -> tuple[str, bool]:
     try:
         from dotenv import load_dotenv
         load_dotenv(HERE / ".env")
-    except ImportError:                                    # pragma: no cover
+    except ImportError:
         pass
-    tok = os.getenv("WEB_TOKEN", "").strip()
+    tok = os.getenv("WEB_TOKEN", "").strip() or env_file_value("WEB_TOKEN")
     return (tok, False) if tok else (secrets.token_urlsafe(12), True)
+
+
+def env_file_value(key: str, path: Path | None = None) -> str:
+    """Read one value straight out of .env, without python-dotenv.
+
+    Nothing else in this file needs a package from requirements.txt, so the
+    server has to run on a machine where `pip install` failed. Leaning on
+    dotenv alone meant a missing library silently ignored the token in .env and
+    generated a fresh one every restart -- which looks exactly like "the token
+    is wrong" from the phone, with nothing on screen to say otherwise.
+    """
+    try:
+        text = (path or HERE / ".env").read_text(encoding="utf-8-sig", errors="replace")
+    except OSError:
+        return ""
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, _, value = line.partition("=")
+        if name.strip().removeprefix("export ").strip() != key:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+            value = value[1:-1]
+        return value.strip()
+    return ""
 
 
 def lan_address() -> str:
@@ -231,7 +258,9 @@ class Handler(BaseHTTPRequestHandler):
         sys.stderr.write(f"{self.address_string()}  {fmt % args}\n")
 
     def authorised(self) -> bool:
-        given = self.headers.get(TOKEN_HEADER, "")
+        # Trimmed: a token pasted on a phone arrives with a trailing space often
+        # enough that not trimming reads as "the token is wrong".
+        given = self.headers.get(TOKEN_HEADER, "").strip()
         return bool(given) and hmac.compare_digest(given, self.token)
 
     def send(self, status: HTTPStatus, body: bytes, ctype: str) -> None:
@@ -443,7 +472,7 @@ footer button{background:none;border:0;color:var(--muted);font:inherit;
 <script>
 const KEY = 'daily-sheet-token';
 const url = new URL(location.href);
-let token = url.searchParams.get('t') || localStorage.getItem(KEY) || '';
+let token = (url.searchParams.get('t') || localStorage.getItem(KEY) || '').trim();
 if (url.searchParams.get('t')) {
   localStorage.setItem(KEY, token);
   history.replaceState({}, '', url.pathname);   // keep it out of the address bar
@@ -621,10 +650,17 @@ def main(argv: list[str] | None = None) -> int:
     where = lan_address() if args.host in ("0.0.0.0", "") else args.host
     print(f"Daily Sheet server on http://{where}:{args.port}")
     if generated:
+        # Say which of the two it is. "No WEB_TOKEN" alone sent someone hunting
+        # for a typo in a file that did not exist.
+        env = HERE / ".env"
         print()
-        print("No WEB_TOKEN in .env, so this run made one up:")
+        if env.exists():
+            print(f"There is a .env here but no WEB_TOKEN= line in it ({env}).")
+        else:
+            print(f"There is no .env here yet ({env}).")
+        print("So this run made a token up:")
         print(f"    WEB_TOKEN={token}")
-        print("Add that line to .env or it changes every restart.")
+        print("Put that line in .env or it changes every restart.")
     print()
     print("On the phone, open:")
     print(f"    http://{where}:{args.port}/?t={token}")
