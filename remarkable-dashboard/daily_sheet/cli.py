@@ -153,7 +153,18 @@ def sync(cfg: Config, day: date) -> int:
     name = sheet_name(day)
     doc = rm.find(cfg.remarkable_folder, name)
     if not doc:
+        # Show what is actually there: a near-miss (different dash, trailing
+        # space, mangled encoding) is invisible otherwise, and reads as "the
+        # push never happened" when in fact the name simply doesn't match.
+        have = rm.ls(cfg.remarkable_folder)
         log(cfg, f"sync: '{name}' not in {cfg.remarkable_folder}/ — nothing to read.")
+        log(cfg, f"       looking for: {name!r}")
+        if have:
+            log(cfg, f"       folder has {len(have)} entr{'y' if len(have) == 1 else 'ies'}:")
+            for entry in have:
+                log(cfg, f"         {entry!r}")
+        else:
+            log(cfg, f"       folder is empty or unreadable — has a sheet been pushed?")
         return 1
 
     state_file = cfg.out_dir / f"synced-{day.isoformat()}.json"
