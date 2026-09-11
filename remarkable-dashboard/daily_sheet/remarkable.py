@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -161,20 +162,38 @@ class Rmapi:
     def download_annotated(self, doc_path: str, dest_dir: Path) -> Path:
         """Download the document with pen marks baked in, as a PDF.
 
-        rmapi's `geta` ('get annotated') writes <name>.pdf into cwd, so we run
-        it from dest_dir and return whatever landed.
+        `geta` names its output itself -- it appends "-annotations", and on
+        Windows it mangles the em-dash in the document name on the way -- so we
+        take whatever PDF appears rather than predicting the filename.
+
+        It runs in a fresh empty directory each time. Diffing the contents of a
+        shared directory instead looks equivalent but is not: the second run
+        finds the first run's file already present, sees no new file, and
+        reports the download as having produced nothing.
+
+        The result is moved to a stable ASCII name so nothing downstream has to
+        handle a mojibake path.
         """
         dest_dir.mkdir(parents=True, exist_ok=True)
-        before = set(dest_dir.glob("*.pdf"))
+        work = Path(tempfile.mkdtemp(prefix="geta-", dir=dest_dir))
         try:
-            p = subprocess.run(
-                [self.cfg.rmapi_bin, "geta", doc_path],
-                capture_output=True, text=True, timeout=TIMEOUT, cwd=dest_dir,
-            )
-        except (FileNotFoundError, subprocess.TimeoutExpired) as e:
-            raise RmapiError(f"rmapi geta failed: {e}") from e
-        new = set(dest_dir.glob("*.pdf")) - before
-        if not new:
-            err = (p.stderr or p.stdout or "").strip()
-            raise RmapiError(f"rmapi geta produced no PDF for {doc_path}: {err[:200]}")
-        return new.pop()
+            try:
+                p = subprocess.run(
+                    [self.cfg.rmapi_bin, "geta", doc_path],
+                    capture_output=True, text=True, timeout=TIMEOUT, cwd=work,
+                    encoding="utf-8", errors="replace",
+                )
+            except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+                raise RmapiError(f"rmapi geta failed: {e}") from e
+
+            found = sorted(work.glob("*.pdf"), key=lambda f: f.stat().st_mtime)
+            if not found:
+                err = (p.stderr or p.stdout or "").strip()
+                raise RmapiError(f"rmapi geta produced no PDF for {doc_path}: {err[:200]}")
+
+            final = dest_dir / "annotated.pdf"
+            final.unlink(missing_ok=True)
+            shutil.move(str(found[-1]), str(final))
+            return final
+        finally:
+            shutil.rmtree(work, ignore_errors=True)

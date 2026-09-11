@@ -120,3 +120,35 @@ def test_refresh_overwrites_in_place_once_marks_are_read(rm, tmp_path):
     assert not [c for c in rm.calls if c[0] == "mv"], "a refresh must not archive"
     assert any("--force" in c for c in _puts(rm))
     assert _puts(rm)[0][-2] == pdf.name
+
+
+def test_download_annotated_works_on_a_repeat_run(rm, tmp_path, monkeypatch):
+    """geta into a shared directory breaks the second time.
+
+    The first run leaves its file behind; diffing before/after then finds no
+    new file and reports the download as having produced nothing, even though
+    it succeeded. Real failure mode -- it only shows up on run two.
+    """
+    import subprocess as sp
+
+    dest = tmp_path / "annotated"
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(cmd)
+        # geta names the file itself: '-annotations' suffix, mangled dash.
+        out = Path(kw["cwd"]) / "Daily Sheet â€” 2026-09-11-annotations.pdf"
+        out.write_bytes(b"%PDF-1.4\n")
+        return sp.CompletedProcess(cmd, 0, "downloading...", "")
+
+    monkeypatch.setattr(sp, "run", fake_run)
+
+    first = rm.download_annotated("Daily/Daily Sheet — 2026-09-11", dest)
+    assert first.exists() and first.name == "annotated.pdf", "name must be normalised"
+
+    second = rm.download_annotated("Daily/Daily Sheet — 2026-09-11", dest)
+    assert second.exists(), "a repeat download must still be found"
+    assert len(calls) == 2
+
+    leftovers = [p for p in dest.iterdir() if p.is_dir()]
+    assert not leftovers, f"temp dirs must be cleaned up, found {leftovers}"
