@@ -639,10 +639,14 @@ class Renderer:
         lines = max(NEW_BOX_LINES, int(box_h // 78))
         line_h = box_h / lines
 
-        self.text(M, top - 12, "New tasks", FB, 26)
-        self.text(PAGE_W - M, top - 12, "one per line  ·  goes to Asana", F, 17, GREY, align="right")
-
         prio_x, week_x = self._task_columns()
+
+        self.text(M, top - 12, "New tasks", FB, 26)
+        # The hint moves left to clear the column headers, which have to sit
+        # over their own columns to mean anything.
+        self.text(M + 190, top - 12, "one per line  ·  goes to Asana", F, 17, GREY)
+        self.priority_header(prio_x, top - 12)
+        self.week_header(week_x, top - 12)
         self.rect(M, top, PAGE_W - 2 * M, box_h, stroke=2)
         for i in range(1, lines):
             self.line(M, top + i * line_h, PAGE_W - M, top + i * line_h, 0.75, RULE)
