@@ -31,7 +31,7 @@ PRIORITY_MIN = float(os.getenv("INK_PRIORITY_MIN", "0.02"))
 SPAN_MIN = float(os.getenv("INK_SPAN_MIN", "0.45"))   # mark must cross ~half the box
 INSET = 7                   # px trimmed off each edge to exclude the printed border
 
-MODEL = "claude-sonnet-4-6"
+MODEL = "claude-opus-5"
 
 
 @dataclass
