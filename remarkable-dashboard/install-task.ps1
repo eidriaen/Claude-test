@@ -18,21 +18,26 @@
 .EXAMPLE
     .\install-task.ps1                    # 08:00 daily
     .\install-task.ps1 -At 07:30
+    .\install-task.ps1 -SyncEvery 15      # also read ticks every 15 minutes
+    .\install-task.ps1 -Server            # also start the phone server at logon
     .\install-task.ps1 -Remove
 #>
 param(
     [string]$At = '08:00',
     [int]$SyncEvery = 0,
+    [int]$Port = 8080,
+    [switch]$Server,
     [switch]$Remove
 )
 
 $ErrorActionPreference = 'Stop'
-$taskName = 'reMarkable Daily Sheet'
-$syncName = 'reMarkable Sync'
-$runner   = Join-Path $PSScriptRoot 'run.ps1'
+$taskName   = 'reMarkable Daily Sheet'
+$syncName   = 'reMarkable Sync'
+$serverName = 'reMarkable Sheet Server'
+$runner     = Join-Path $PSScriptRoot 'run.ps1'
 
 if ($Remove) {
-    foreach ($n in @($taskName, $syncName)) {
+    foreach ($n in @($taskName, $syncName, $serverName)) {
         if (Get-ScheduledTask -TaskName $n -ErrorAction SilentlyContinue) {
             Unregister-ScheduledTask -TaskName $n -Confirm:$false
             Write-Host "Removed scheduled task '$n'."
@@ -94,6 +99,54 @@ if ($SyncEvery -gt 0) {
         -Force | Out-Null
 
     Write-Host "Scheduled '$syncName' every $SyncEvery minutes."
+}
+
+if ($Server) {
+    # The phone server, started at logon and restarted if it ever dies. It is
+    # long-running rather than scheduled, so no repetition trigger -- one
+    # instance, kept alive.
+    # Windows PowerShell 5.1 is what ships on these machines, so no ?. here.
+    $pyw = $null
+    foreach ($exe in @('pythonw.exe', 'pyw.exe')) {
+        $cmd = Get-Command $exe -ErrorAction SilentlyContinue
+        if ($cmd) { $pyw = $cmd.Source; break }
+    }
+    if (-not $pyw) {
+        Write-Warning "No pythonw.exe on PATH -- skipping '$serverName'. Start it by hand with 'Daily Sheet Server.bat'."
+    } else {
+        $envFile = Join-Path $PSScriptRoot '.env'
+        if (-not ((Test-Path -LiteralPath $envFile) -and
+                  (Select-String -LiteralPath $envFile -Pattern '^\s*WEB_TOKEN\s*=\s*\S' -Quiet))) {
+            # Without a token in .env the server invents one per restart and
+            # prints it to a console nobody is looking at -- so the phone would
+            # be locked out after every reboot.
+            Write-Warning 'No WEB_TOKEN in .env. Set one before relying on the server task, or the token changes on every restart.'
+        }
+
+        $serverAction = New-ScheduledTaskAction `
+            -Execute $pyw `
+            -Argument "`"$(Join-Path $PSScriptRoot 'serve.py')`" --port $Port --quiet" `
+            -WorkingDirectory $PSScriptRoot
+
+        $serverTrigger = New-ScheduledTaskTrigger -AtLogOn
+
+        $serverSettings = New-ScheduledTaskSettingsSet `
+            -DontStopIfGoingOnBatteries `
+            -AllowStartIfOnBatteries `
+            -ExecutionTimeLimit ([TimeSpan]::Zero) `
+            -RestartCount 3 `
+            -RestartInterval (New-TimeSpan -Minutes 1)
+
+        Register-ScheduledTask `
+            -TaskName    $serverName `
+            -Description 'Serves the phone page that presses the same buttons as the window.' `
+            -Action      $serverAction `
+            -Trigger     $serverTrigger `
+            -Settings    $serverSettings `
+            -Force | Out-Null
+
+        Write-Host "Scheduled '$serverName' at logon on port $Port."
+    }
 }
 
 Write-Host ''

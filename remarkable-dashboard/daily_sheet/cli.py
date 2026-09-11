@@ -548,10 +548,14 @@ def _utf8_stdout() -> None:
     Windows defaults stdout to cp1252, which cannot encode the arrows and
     dashes this tool prints -- and an unencodable character raises rather than
     degrading, so a cosmetic glyph takes down the whole command.
+
+    Line buffering is set here too: piped into the window or the phone server,
+    stdout would otherwise be block-buffered and the whole log would arrive in
+    one lump at the end, which reads as a hung run.
     """
     for stream in (sys.stdout, sys.stderr):
         try:
-            stream.reconfigure(encoding="utf-8", errors="replace")
+            stream.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
         except (AttributeError, OSError, ValueError):
             pass
 

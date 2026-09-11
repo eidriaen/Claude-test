@@ -121,7 +121,7 @@ sheet — you just lose the pen loop until it's fixed.
 
 ## The window
 
-Double-click **`Daily Sheet.bat`** (or `dashboard.pyw` directly). Four buttons:
+Double-click **`Daily Sheet.bat`** (or `dashboard.pyw` directly). Five buttons:
 
 | Button | What it does |
 |---|---|
@@ -138,8 +138,70 @@ Right-click the `.bat` → **Send to → Desktop (create shortcut)** for an icon
 
 Everything below is the same thing from a terminal.
 
-> Planning to run this on an always-on machine and drive it from a phone?
-> [NEXT.md](NEXT.md) has the design.
+## The same buttons on your phone
+
+`serve.py` is the window as a web page. It runs the same
+`python -m daily_sheet …` commands and streams the same log back, so there is
+still one implementation and two thin wrappers over it.
+
+On the machine that owns the loop — the office mini PC, ideally, not a laptop
+that travels:
+
+```powershell
+.\"Daily Sheet Server.bat"          # or: py serve.py
+```
+
+It prints the address and a link with the token in it:
+
+```
+Daily Sheet server on http://192.168.1.40:8080
+
+On the phone, open:
+    http://192.168.1.40:8080/?t=Xk8sP2mq…
+```
+
+Open that on the phone, then **Share → Add to Home Screen**. It opens
+full-screen with an icon and remembers the token, so afterwards it is one tap
+to `Sync + Generate Daily`. The token is stored on the phone only — it is
+stripped from the address bar as soon as the page loads, so a screenshot of the
+URL gives nothing away.
+
+Set `WEB_TOKEN` in `.env` before relying on it. Leave it blank and the server
+invents one at every restart, which locks the phone out after a reboot:
+
+```powershell
+py -c "import secrets; print(secrets.token_urlsafe(16))"
+```
+
+To have it come back by itself after a restart:
+
+```powershell
+.\install-task.ps1 -Server              # at logon, port 8080
+.\install-task.ps1 -Server -Port 9000
+```
+
+### Reaching it from outside the office
+
+**Do not port-forward it.** Pressing these buttons writes to Asana and pushes
+to the tablet, so anything that can reach the server can do both. The token is
+a lock on the cabinet, not a front door.
+
+[Tailscale](https://tailscale.com) is the way in: free for personal use,
+installed on the mini PC and the phone, and the mini PC gets a stable address
+that works on the office wifi and on 5G alike without opening anything to the
+internet. Use the Tailscale address in the phone's bookmark
+(`http://minipc:8080`) and it keeps working from both.
+
+### One machine, not two
+
+If the laptop keeps its scheduled task as well, both machines will try to own
+today's sheet — they race to archive and replace the same document, and a tick
+read by one is invisible to the other. Pick the machine that stays on, run
+`install-task.ps1` there, and run `install-task.ps1 -Remove` everywhere else.
+The laptop keeps the window, which is safe: reading the tablet is the same
+whoever asks.
+
+> Design notes and what is deliberately left out: [NEXT.md](NEXT.md).
 
 ## Calendar via Power Automate
 
@@ -300,7 +362,7 @@ A missing or unannotated sheet just logs and moves on.
 python -m pytest
 ```
 
-21 tests, no network, no model calls. The round-trip tests render a real sheet,
+65 tests, no network, no model calls. The round-trip tests render a real sheet,
 draw pen ticks into it at the coordinates `layout.json` claims, read it back,
 and assert the task store changed correctly — the whole product minus the
 tablet.
