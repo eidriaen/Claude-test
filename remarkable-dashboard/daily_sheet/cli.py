@@ -2,6 +2,8 @@
 
     python -m daily_sheet generate                 # the real thing
     python -m daily_sheet generate --fixtures --dry-run
+    python -m daily_sheet sync                     # read today's ticks now
+    python -m daily_sheet doctor                   # check every connection
     python -m daily_sheet calibrate <annotated.pdf> out/layout.json
 
 Failure policy: any single source failing renders that section with an
@@ -11,6 +13,7 @@ a hard error (exit 1).
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import traceback
 from datetime import date, datetime, timedelta
@@ -79,8 +82,15 @@ def ingest_yesterday(cfg: Config, rm: Rmapi, store: TaskStore, asana, today: dat
     return report
 
 
-def apply_marks(marks: Marks, store: TaskStore, asana, today: date, report: IngestionReport) -> None:
-    """Turn pen marks into task-store and Asana changes. Nothing is destructive."""
+def apply_marks(marks: Marks, store: TaskStore, asana, today: date, report: IngestionReport,
+                already_added: set[str] | None = None) -> None:
+    """Turn pen marks into task-store and Asana changes. Nothing is destructive.
+
+    `already_added` holds titles this sheet has contributed before — sync can run
+    repeatedly against the same page, and without it every run would re-add the
+    same handwritten line.
+    """
+    seen = already_added or set()
     known = {t.id for t in store.tasks}
     done: set[str] = set()          # guards the one external write we make
 
@@ -105,6 +115,8 @@ def apply_marks(marks: Marks, store: TaskStore, asana, today: date, report: Inge
         parsed = parse_pen_line(line)
         if parsed:
             title, prio = parsed
+            if title.strip().lower() in seen:
+                continue
             store.add(title, prio, source="pen", today=today)
             report.added.append(title)
 
@@ -116,6 +128,61 @@ def write_notes(cfg: Config, marks_notes: str, day: date) -> None:
         return
     cfg.notes_dir.mkdir(parents=True, exist_ok=True)
     (cfg.notes_dir / f"{day.isoformat()}.md").write_text(marks_notes.rstrip() + "\n", encoding="utf-8")
+
+
+# --- sync: read today's marks back without re-rendering ---------------------
+def sync(cfg: Config, day: date) -> int:
+    """Read the marks on `day`'s sheet and push them, leaving the sheet in place.
+
+    This is the read-back half of the daily loop on its own, so it can run on
+    demand or on a short timer: tick a box, sync, and Asana has it. It never
+    archives and never re-renders, so the sheet you are writing on stays put and
+    marks you add later are picked up by the next sync.
+    """
+    layout = cfg.out_dir / f"layout-{day.isoformat()}.json"
+    if not layout.exists():
+        log(cfg, f"sync: no layout for {day.isoformat()} — nothing to read.")
+        return 1
+
+    rm = Rmapi(cfg)
+    ok, reason = rm.status()
+    if not ok:
+        log(cfg, f"sync: {reason}")
+        return 1
+
+    name = sheet_name(day)
+    doc = rm.find(cfg.remarkable_folder, name)
+    if not doc:
+        log(cfg, f"sync: '{name}' not in {cfg.remarkable_folder}/ — nothing to read.")
+        return 1
+
+    state_file = cfg.out_dir / f"synced-{day.isoformat()}.json"
+    state = json.loads(state_file.read_text(encoding="utf-8")) if state_file.exists() else {}
+    already = {t.lower() for t in state.get("added", [])}
+
+    store = TaskStore(cfg.tasks_file)
+    asana_tasks, asana_status, asana = load_asana(cfg, day)
+    if not asana_status.ok:
+        log(cfg, f"sync: warn: asana unavailable — {asana_status.error}")
+
+    report = IngestionReport()
+    try:
+        annotated = rm.download_annotated(doc, cfg.out_dir / "annotated")
+        set_strip_dir(cfg.out_dir / "strips")
+        marks = read_marks(annotated, layout, cfg.anthropic_api_key)
+    except Exception as exc:  # noqa: BLE001 — a bad read must not lose the sheet
+        log(cfg, f"sync: read failed: {type(exc).__name__}: {exc}")
+        return 1
+
+    apply_marks(marks, store, asana, day, report, already_added=already)
+    write_notes(cfg, marks.notes, day)
+    store.save()
+
+    state["added"] = sorted(already | {t.lower() for t in report.added})
+    state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+    log(cfg, f"sync {day.isoformat()}: {report.summary()}")
+    return 0
 
 
 # --- the run ----------------------------------------------------------------
@@ -222,6 +289,9 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("pdf", type=Path)
     c.add_argument("layout", type=Path)
 
+    s = sub.add_parser("sync", help="read today's ticks and push them to Asana now")
+    s.add_argument("--date", help="sync this date's sheet instead of today (YYYY-MM-DD)")
+
     sub.add_parser("doctor", help="check every connection and report what's broken")
 
     args = p.parse_args(argv)
@@ -232,6 +302,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "doctor":
         from .doctor import doctor
         return doctor(load_config())
+
+    if args.cmd == "sync":
+        cfg = load_config()
+        day = date.fromisoformat(args.date) if args.date else date.today()
+        try:
+            return sync(cfg, day)
+        except Exception:  # noqa: BLE001
+            log(cfg, "FATAL:\n" + traceback.format_exc())
+            return 1
 
     cfg = load_config(use_fixtures=args.fixtures, dry_run=args.dry_run)
     today = date.fromisoformat(args.date) if args.date else date.today()

@@ -29,7 +29,12 @@ class Rmapi:
     def _run(self, *args: str, check: bool = True) -> subprocess.CompletedProcess:
         cmd = [self.cfg.rmapi_bin, *args]
         try:
-            p = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT)
+            # rmapi emits UTF-8. Without an explicit encoding Python decodes with
+            # the locale codepage (cp1252 on a Norwegian Windows), which mangles
+            # the em-dash in "Daily Sheet — <date>" — and since find() matches the
+            # name exactly, read-back would never locate yesterday's sheet.
+            p = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT,
+                               encoding="utf-8", errors="replace")
         except FileNotFoundError as e:
             raise RmapiError(f"{self.cfg.rmapi_bin} not found on PATH — see README") from e
         except subprocess.TimeoutExpired as e:

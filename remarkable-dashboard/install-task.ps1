@@ -22,19 +22,21 @@
 #>
 param(
     [string]$At = '08:00',
+    [int]$SyncEvery = 0,
     [switch]$Remove
 )
 
 $ErrorActionPreference = 'Stop'
 $taskName = 'reMarkable Daily Sheet'
+$syncName = 'reMarkable Sync'
 $runner   = Join-Path $PSScriptRoot 'run.ps1'
 
 if ($Remove) {
-    if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
-        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
-        Write-Host "Removed scheduled task '$taskName'."
-    } else {
-        Write-Host "No scheduled task named '$taskName'."
+    foreach ($n in @($taskName, $syncName)) {
+        if (Get-ScheduledTask -TaskName $n -ErrorAction SilentlyContinue) {
+            Unregister-ScheduledTask -TaskName $n -Confirm:$false
+            Write-Host "Removed scheduled task '$n'."
+        }
     }
     return
 }
@@ -69,6 +71,31 @@ Register-ScheduledTask `
     -Force | Out-Null
 
 Write-Host "Scheduled '$taskName' daily at $At."
+
+if ($SyncEvery -gt 0) {
+    # Reads the ticks off today's sheet and pushes them to Asana. It never
+    # re-renders or archives, so it is safe to run while you are writing on the
+    # sheet -- marks added later are picked up by the next pass.
+    $syncAction = New-ScheduledTaskAction `
+        -Execute 'powershell.exe' `
+        -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$runner`" -Sync" `
+        -WorkingDirectory $PSScriptRoot
+
+    $syncTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).Date.AddHours(7) `
+        -RepetitionInterval (New-TimeSpan -Minutes $SyncEvery) `
+        -RepetitionDuration (New-TimeSpan -Hours 23)
+
+    Register-ScheduledTask `
+        -TaskName    $syncName `
+        -Description 'Reads ticks off today''s sheet and completes them in Asana.' `
+        -Action      $syncAction `
+        -Trigger     $syncTrigger `
+        -Settings    $settings `
+        -Force | Out-Null
+
+    Write-Host "Scheduled '$syncName' every $SyncEvery minutes."
+}
+
 Write-Host ''
 Write-Host 'Check it:'
 Write-Host "  Get-ScheduledTask -TaskName '$taskName'"

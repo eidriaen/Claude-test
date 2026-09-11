@@ -16,6 +16,7 @@
 param(
     [switch]$DryRun,
     [switch]$Fixtures,
+    [switch]$Sync,
     [string]$Date
 )
 
@@ -40,10 +41,12 @@ if (-not $exe) {
     exit 1
 }
 
-$args = $pre + @('-m', 'daily_sheet', 'generate')
-if ($Fixtures) { $args += '--fixtures' }
-if ($DryRun)   { $args += '--dry-run' }
-if ($Date)     { $args += @('--date', $Date) }
+$args = $pre + @('-m', 'daily_sheet', $(if ($Sync) { 'sync' } else { 'generate' }))
+if (-not $Sync) {
+    if ($Fixtures) { $args += '--fixtures' }
+    if ($DryRun)   { $args += '--dry-run' }
+}
+if ($Date) { $args += @('--date', $Date) }
 
 Write-Log "start: $exe $($args -join ' ')"
 & $exe @args
