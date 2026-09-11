@@ -93,6 +93,22 @@ def test_hello_diagnoses_without_leaking(server):
     assert not any(TOKEN[:6] in str(v) for v in hello.values())
 
 
+def test_manifest_carries_the_token_only_when_asked_with_it(server):
+    """An installed icon must open unlocked; a stranger must learn nothing.
+
+    The home-screen app gets its own storage on iOS, so the token has to travel
+    in start_url or the installed app asks for it again.
+    """
+    plain = json.loads(get(server + "/manifest.webmanifest", token=None)[1])
+    assert plain["start_url"] == "/"
+
+    ok = json.loads(get(f"{server}/manifest.webmanifest?t={TOKEN}", token=None)[1])
+    assert ok["start_url"] == "/?t=" + TOKEN
+
+    wrong = json.loads(get(f"{server}/manifest.webmanifest?t=nope", token=None)[1])
+    assert wrong["start_url"] == "/"
+
+
 def test_status_refuses_without_token(server):
     assert get(server + "/status", token=None)[0] == 401
     assert get(server + "/status", token="wrong")[0] == 401

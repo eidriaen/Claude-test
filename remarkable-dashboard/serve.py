@@ -30,7 +30,7 @@ from datetime import date, datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
 
 HERE = Path(__file__).resolve().parent
 
@@ -306,7 +306,18 @@ class Handler(BaseHTTPRequestHandler):
                 "host": socket.gethostname(),
             })
         elif path == "/manifest.webmanifest":
-            self.send(HTTPStatus.OK, MANIFEST.encode(), "application/manifest+json")
+            # The home-screen app gets its own storage on iOS, separate from
+            # the browser's, so an installed icon asked for the token again
+            # even though the page it was installed from was unlocked. Putting
+            # the token in start_url carries it across that boundary. It is
+            # only ever echoed back to a request that already proved it knows
+            # the token.
+            given = parse_qs(urlsplit(self.path).query).get("t", [""])[0].strip()
+            start = "/"
+            if given and hmac.compare_digest(given, self.token):
+                start = "/?t=" + quote(self.token)
+            self.send(HTTPStatus.OK, manifest(start).encode(),
+                      "application/manifest+json")
         elif path == "/icon.svg":
             self.send(HTTPStatus.OK, ICON.encode(), "image/svg+xml")
         elif path == "/favicon.ico":
@@ -363,15 +374,16 @@ ICON = (
     'stroke-linecap="round"/></svg>'
 )
 
-MANIFEST = json.dumps({
-    "name": "Daily Sheet",
-    "short_name": "Daily Sheet",
-    "start_url": "/",
-    "display": "standalone",
-    "background_color": "#f4f4f2",
-    "theme_color": "#1c1c1a",
-    "icons": [{"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml"}],
-})
+def manifest(start_url: str = "/") -> str:
+    return json.dumps({
+        "name": "Daily Sheet",
+        "short_name": "Daily Sheet",
+        "start_url": start_url,
+        "display": "standalone",
+        "background_color": "#f4f4f2",
+        "theme_color": "#1c1c1a",
+        "icons": [{"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml"}],
+    })
 
 
 def _buttons_html() -> str:
@@ -463,6 +475,12 @@ footer button{background:none;border:0;color:var(--muted);font:inherit;
 </section>
 
 <main id="app" hidden>
+  <div class="card" id="tip" hidden>
+    <div class="big">Add it to your home screen</div>
+    <div class="sub">Tap <b>Share</b> → <b>Add to Home Screen</b> now. This link
+      carries your token, so the installed app won't ask for it.</div>
+  </div>
+
   <div class="card" id="statecard">
     <div class="big" id="sheetline">…</div>
     <div class="sub" id="lastline"></div>
@@ -477,7 +495,10 @@ footer button{background:none;border:0;color:var(--muted);font:inherit;
 
   <footer>
     <span id="host"></span>
-    <button id="forget">Forget token</button>
+    <span>
+      <button id="install">Home screen</button>
+      <button id="forget" style="margin-left:12px">Forget token</button>
+    </span>
   </footer>
 </main>
 
@@ -485,9 +506,13 @@ footer button{background:none;border:0;color:var(--muted);font:inherit;
 const KEY = 'daily-sheet-token';
 const url = new URL(location.href);
 let token = (url.searchParams.get('t') || localStorage.getItem(KEY) || '').trim();
+// keep=1 means "we are about to be installed": the token has to stay in the
+// address bar, because iOS may take the current URL as the home-screen app's
+// start URL rather than the manifest's.
+const keep = url.searchParams.get('keep') === '1';
 if (url.searchParams.get('t')) {
   localStorage.setItem(KEY, token);
-  history.replaceState({}, '', url.pathname);   // keep it out of the address bar
+  if (!keep) history.replaceState({}, '', url.pathname);  // out of the address bar
 }
 
 const $ = (id) => document.getElementById(id);
@@ -543,6 +568,10 @@ $('gateform').addEventListener('submit', (e) => {
   refresh();
 });
 
+$('install').addEventListener('click', () => {
+  location.href = '/?t=' + encodeURIComponent(token) + '&keep=1';
+});
+
 $('forget').addEventListener('click', () => {
   localStorage.removeItem(KEY);
   token = '';
@@ -563,6 +592,11 @@ async function refresh(keepPill) {
   if (r.status === 401) { showGate('wrong token'); return; }
   gate.style.display = 'none';
   app.hidden = false;
+  $('tip').hidden = !keep;
+  // Point the manifest at a copy whose start_url carries the token, so an
+  // installed icon opens already unlocked.
+  document.querySelector('link[rel=manifest]').href =
+      '/manifest.webmanifest?t=' + encodeURIComponent(token);
   const s = await r.json();
   $('sheetline').textContent = s.sheet.sheet
       ? s.sheet.sheet.replace(/\\.pdf$/, '')
