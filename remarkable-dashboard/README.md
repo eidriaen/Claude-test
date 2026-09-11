@@ -118,6 +118,21 @@ rmapi mv "Daily/Daily Sheet — 2026-09-11" Daily/Archive
 If `geta` fails, read-back won't work and the run will log it and still ship the
 sheet — you just lose the pen loop until it's fixed.
 
+## The window
+
+Double-click **`Daily Sheet.bat`** (or `dashboard.pyw` directly). Four buttons:
+
+| Button | What it does |
+|---|---|
+| **Sync now** | Reads your pen ticks off today's sheet and completes them in Asana |
+| **New sheet** | Fetches calendar + Asana and pushes a fresh sheet to the tablet |
+| **What's on the tablet** | Lists `Daily/` and `Archive/`, flagging which sheet sync will read |
+| **Check connections** | Tests rmapi, the calendar feed, Asana, and the API key |
+
+Right-click the `.bat` → **Send to → Desktop (create shortcut)** for an icon.
+
+Everything below is the same thing from a terminal.
+
 ## Daily use
 
 ```bash

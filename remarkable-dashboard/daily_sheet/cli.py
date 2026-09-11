@@ -130,6 +130,39 @@ def write_notes(cfg: Config, marks_notes: str, day: date) -> None:
     (cfg.notes_dir / f"{day.isoformat()}.md").write_text(marks_notes.rstrip() + "\n", encoding="utf-8")
 
 
+# --- tablet: what is actually up there --------------------------------------
+def tablet(cfg: Config) -> int:
+    """List the sheets on the tablet, flagging which one sync will read.
+
+    Worth its own command because "where did my ticks go" is the question this
+    project raises most, and the answer is nearly always that a later generate
+    moved the sheet to Archive.
+    """
+    rm = Rmapi(cfg)
+    ok, reason = rm.status()
+    if not ok:
+        print(f"\n  {reason}\n")
+        return 1
+
+    today = date.today().isoformat()
+    for folder in (cfg.remarkable_folder, cfg.archive_folder):
+        entries = sorted(rm.ls(folder))
+        print(f"\n  {folder}/")
+        if not entries:
+            print("    (empty)")
+            continue
+        for e in entries:
+            mark = ""
+            if e == sheet_name(date.today()):
+                mark = "  ← sync reads this one" if folder == cfg.remarkable_folder else \
+                       "  ← today's sheet, but archived: sync will not read it"
+            elif today in e:
+                mark = "  ← today"
+            print(f"    {e}{mark}")
+    print()
+    return 0
+
+
 # --- sync: read today's marks back without re-rendering ---------------------
 def sync(cfg: Config, day: date) -> int:
     """Read the marks on `day`'s sheet and push them, leaving the sheet in place.
@@ -303,6 +336,7 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("sync", help="read today's ticks and push them to Asana now")
     s.add_argument("--date", help="sync this date's sheet instead of today (YYYY-MM-DD)")
 
+    sub.add_parser("tablet", help="list the sheets on the tablet")
     sub.add_parser("doctor", help="check every connection and report what's broken")
 
     args = p.parse_args(argv)
@@ -313,6 +347,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "doctor":
         from .doctor import doctor
         return doctor(load_config())
+
+    if args.cmd == "tablet":
+        return tablet(load_config())
 
     if args.cmd == "sync":
         cfg = load_config()
