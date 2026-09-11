@@ -102,18 +102,29 @@ def check_calendar(cfg: Config, rep: Report) -> None:
                 "If your calendar is not empty, the feed may be the wrong calendar")
         return
 
-    # A free/busy-only publish level strips titles — the sheet then shows
-    # featureless blocks, which looks like a rendering bug but is not.
-    titles = {(e.title or "").strip().lower() for e in events}
-    opaque = titles <= {"", "busy", "opptatt", "tentative", "free", "ledig"}
-    if opaque:
-        rep.add(WARN, "calendar (ICS)", f"{len(events)} events, but no titles",
-                "The feed is published at 'Can view when I'm busy'.\n"
-                "Re-publish at 'Can view titles and locations' —\n"
-                "or, if your tenant blocks that, switch to the Power Automate source")
+    # A free/busy-only publish level strips titles. Requiring *every* title to
+    # be a busy-word missed this on a real feed: one differently-named entry
+    # and the check passed while the sheet showed nothing but "Busy". Judge it
+    # by proportion, and print the titles so the answer is visible either way.
+    busy_words = {"", "busy", "opptatt", "tentative", "free", "ledig",
+                  "opptatt/busy", "privat", "private", "no title", "(no title)"}
+    titles = [(e.title or "").strip() for e in events]
+    opaque = sum(1 for t in titles if t.lower() in busy_words)
+    distinct = sorted({t for t in titles if t.lower() not in busy_words})
+
+    source = "Power Automate JSON" if cfg.calendar_json else "ICS"
+    if opaque >= len(titles) * 0.8:
+        sample = ", ".join(distinct[:3]) or "none"
+        rep.add(WARN, f"calendar ({source})",
+                f"{len(events)} events, {opaque} of them untitled (real titles: {sample})",
+                "The feed is published at 'Can view when I'm busy', which strips\n"
+                "titles at source — no parsing recovers them.\n"
+                "Re-publish at 'Can view titles and locations', or switch to the\n"
+                "Power Automate source: see 'Calendar via Power Automate' in the README.")
     else:
-        named = sum(1 for e in events if (e.title or "").strip())
-        rep.add(OK, "calendar (ICS)", f"{len(events)} events, {named} with titles")
+        rep.add(OK, f"calendar ({source})",
+                f"{len(events)} events, {len(titles) - opaque} titled "
+                f"(e.g. {', '.join(distinct[:2]) or '—'})")
 
 
 def check_asana(cfg: Config, rep: Report) -> None:

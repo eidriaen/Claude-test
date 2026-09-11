@@ -56,6 +56,15 @@ def expand_events(ics_bytes: bytes, start: date, end: date) -> list[Event]:
 
 
 def load_events(cfg: Config, start: date, end: date) -> tuple[list[Event], SectionStatus]:
+    """Whichever calendar source is configured.
+
+    CALENDAR_JSON wins when set: it exists precisely because the published ICS
+    could not carry titles, so falling back to ICS on a bad read would quietly
+    restore the problem it was added to solve.
+    """
+    if cfg.calendar_json and not cfg.use_fixtures:
+        from .calendar_json import load_json_events
+        return load_json_events(cfg, start, end)
     try:
         return expand_events(fetch_ics(cfg), start, end), SectionStatus()
     except Exception as exc:  # noqa: BLE001 — any source failure degrades that section only

@@ -43,8 +43,9 @@ Pick your calendar, permission **"Can view titles and locations"**, copy the
 The URL is a bearer credential — anyone holding it can read your calendar — so
 it lives in `.env`, which is gitignored.
 
-> If Publish is greyed out by tenant policy, fall back to Google Calendar's
-> secret iCal address and accept the refresh lag (SCOPE §6.1).
+> If publishing is capped at "Can view when I'm busy", the feed carries no
+> titles and no parsing recovers them — use **Calendar via Power Automate**
+> below instead.
 
 ### 2. Asana — personal access token
 
@@ -136,6 +137,67 @@ window can update itself without a terminal.
 Right-click the `.bat` → **Send to → Desktop (create shortcut)** for an icon.
 
 Everything below is the same thing from a terminal.
+
+## Calendar via Power Automate
+
+Use this when Outlook's publish setting is capped at **"Can view when I'm busy"**.
+That strips titles at source — the feed genuinely does not contain them, so no
+parsing recovers them. Power Automate reads the calendar through your own
+delegated access instead, so it returns what you can see, and needs no admin
+approval and no published link.
+
+```
+Power Automate (daily, before the sheet is built)
+  Recurrence
+  → Office 365 Outlook: Get calendar view of events (V3)
+  → OneDrive for Business: Create file  →  calendar.json
+        ↓ OneDrive syncs it to this machine
+Daily Sheet
+  reads the local file — no credential, no network call
+```
+
+### 1. Build the flow
+
+At **make.powerautomate.com** → **Create** → **Scheduled cloud flow**.
+
+| Step | Action | Settings |
+|---|---|---|
+| 1 | **Recurrence** | Every 1 day, 07:30, time zone **(UTC+01:00) Amsterdam, Berlin… ** |
+| 2 | **Office 365 Outlook — Get calendar view of events (V3)** | Calendar: your own. Start: `addDays(utcNow(),-7)`. End: `addDays(utcNow(),14)`. Time zone: **(UTC+01:00) Amsterdam, Berlin…** |
+| 3 | **OneDrive for Business — Create file** | Folder: `/Apps/DailySheet`. Name: `calendar.json`. Content: the **value** output of step 2 |
+
+Set step 3 to overwrite (in newer designers, *Create file* replaces by default;
+otherwise use **Update file**).
+
+### 2. Point the sheet at the synced file
+
+Find where OneDrive put it locally, then in `.env`:
+
+```ini
+CALENDAR_JSON=C:\Users\<you>\OneDrive - NPG\Apps\DailySheet\calendar.json
+```
+
+`CALENDAR_JSON` takes precedence over `ICS_URL` when both are set — the JSON
+source exists because the ICS could not carry titles, so quietly falling back to
+ICS would restore the problem it was added to solve. Leave `ICS_URL` in place or
+remove it; it is ignored either way.
+
+Press **Check connections**: the calendar row will read `calendar (Power
+Automate JSON)` with a sample of real event titles.
+
+### Shape of the file
+
+Parsing is deliberately forgiving, so a hand-shaped flow still works. It accepts
+a bare array or an object with `value` / `events` / `items`, and for each event
+the usual spellings — `subject`/`title`/`name`, `start`/`startTime`,
+`end`/`endTime`, `location` (string or `{displayName}`), `isAllDay`.
+
+A timestamp carrying an offset is converted; a naive one is taken as Oslo local,
+which is what the connector returns when the flow sets its time zone.
+
+> If the file stops updating — the flow is turned off, OneDrive stops syncing —
+> the calendar section reports how stale it is rather than rendering yesterday's
+> schedule as if it were today's.
 
 ## Daily use
 
