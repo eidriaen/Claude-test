@@ -154,13 +154,41 @@ def parse_calendar_json(text: str) -> list[Event]:
     return sorted(events, key=lambda e: e.start)
 
 
+def find_calendar_file(configured: str) -> tuple[Path | None, str]:
+    """(path, note) for the flow's file, searching if the configured one is wrong.
+
+    A business OneDrive folder is named after the full company -- "OneDrive -
+    Norwegian Promotion Group", not the abbreviation people actually type -- so
+    the configured path is wrong far more often than the file is missing.
+    Rather than report "not found" for what is really a typo, look for the file
+    under the user's OneDrive folders and say where it was found.
+    """
+    path = Path(configured).expanduser()
+    if path.exists():
+        return path, ""
+
+    home = Path.home()
+    seen: list[Path] = []
+    for root in sorted(home.glob("OneDrive*")):
+        if not root.is_dir():
+            continue
+        seen.extend(sorted(root.glob(f"**/{path.name or 'calendar.json'}"))[:5])
+
+    if len(seen) == 1:
+        return seen[0], f"found at {seen[0]} (CALENDAR_JSON points elsewhere)"
+    if len(seen) > 1:
+        listed = "\n       ".join(str(p) for p in seen[:5])
+        return None, (f"{path} not found, but {len(seen)} candidates exist:\n       {listed}\n"
+                      f"       Set CALENDAR_JSON to the right one.")
+    return None, (f"{path} not found, and no calendar.json under any OneDrive folder.\n"
+                  f"       Check the flow has run, and that OneDrive has synced it down.")
+
+
 def load_json_events(cfg: Config, start: date, end: date) -> tuple[list[Event], SectionStatus]:
     """Read the flow's file and keep events touching [start, end]."""
-    path = Path(cfg.calendar_json).expanduser()
-    if not path.exists():
-        return [], SectionStatus(
-            ok=False,
-            error=f"{path} not found — has the Power Automate flow run, and has OneDrive synced?")
+    path, note = find_calendar_file(cfg.calendar_json)
+    if path is None:
+        return [], SectionStatus(ok=False, error=note)
     try:
         events = parse_calendar_json(path.read_text(encoding="utf-8-sig"))
     except Exception as exc:  # noqa: BLE001

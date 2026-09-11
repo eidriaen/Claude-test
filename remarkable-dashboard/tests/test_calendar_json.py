@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime
+from pathlib import Path
 
 import pytest
 
@@ -131,3 +132,35 @@ def test_recurring_instances_each_come_through():
     assert len(events) == 3
     assert {e.start.day for e in events} == {15, 16, 17}
     assert all(e.start.hour == 9 for e in events), "each instance converts to Oslo"
+
+
+def test_a_wrong_path_still_finds_the_file(tmp_path, monkeypatch):
+    """A business OneDrive folder is named after the full company, so the
+    configured path is wrong far more often than the file is missing. Reporting
+    'not found' for a typo sends people to check a flow that is working."""
+    from daily_sheet.calendar_json import find_calendar_file
+
+    home = tmp_path
+    real = home / "OneDrive - Norwegian Promotion Group" / "Apps" / "DailySheet"
+    real.mkdir(parents=True)
+    (real / "calendar.json").write_text("[]")
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+
+    found, note = find_calendar_file(str(home / "OneDrive - NPG" / "calendar.json"))
+    assert found == real / "calendar.json"
+    assert "points elsewhere" in note, "and it must say it used a different path"
+
+
+def test_several_candidates_are_listed_rather_than_guessed(tmp_path, monkeypatch):
+    from daily_sheet.calendar_json import find_calendar_file
+
+    home = tmp_path
+    for company in ("OneDrive - A", "OneDrive - B"):
+        d = home / company / "Apps"
+        d.mkdir(parents=True)
+        (d / "calendar.json").write_text("[]")
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
+
+    found, note = find_calendar_file(str(home / "nope" / "calendar.json"))
+    assert found is None, "picking one of several would silently read the wrong calendar"
+    assert "candidates" in note
