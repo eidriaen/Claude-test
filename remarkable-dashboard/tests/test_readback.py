@@ -30,13 +30,13 @@ def sheet(tmp_path_factory):
     monday = TODAY - timedelta(days=TODAY.weekday())
     events, est = load_events(cfg, monday - timedelta(days=7), monday + timedelta(days=14))
     asana, ast, _ = load_asana(cfg, TODAY)
-    store = TaskStore(cfg.tasks_file)
-    data = SheetData(TODAY, events, est, store.open_tasks(), asana, ast, IngestionReport())
+    data = SheetData(TODAY, events, est, asana, ast, [], [], _ok(), IngestionReport())
     pdf, layout_path = render_sheet(data, out)
     layout = json.loads(layout_path.read_text())
     images = page_images(pdf, tuple(layout["page_size"]))
     regions = [Region.from_json(d) for d in layout["regions"]]
-    return {"pdf": pdf, "layout": layout, "images": images, "regions": regions, "store": store}
+    return {"pdf": pdf, "layout": layout, "images": images, "regions": regions,
+            "asana": asana}
 
 
 def _checks(sheet) -> list[Region]:
@@ -45,9 +45,15 @@ def _checks(sheet) -> list[Region]:
 
 # --- layout sanity ---------------------------------------------------------
 def test_every_open_task_has_a_checkbox(sheet):
+    """Every task drawn on the page must be tickable.
+
+    A row rendered without a matching region in layout.json is a task you can
+    tick that nothing will ever read -- silent, and indistinguishable from a
+    threshold problem.
+    """
     ids = {r.id for r in _checks(sheet)}
-    for t in sheet["store"].open_tasks():
-        assert t.id in ids, f"task {t.id} has no checkbox"
+    for t in sheet["asana"]:
+        assert t.gid in ids, f"task {t.gid} ({t.name}) has no checkbox"
 
 
 def test_regions_are_inside_the_page(sheet):
@@ -168,3 +174,8 @@ def test_unknown_id_without_asana_is_ignored(tmp_path):
     store = TaskStore(path)
     apply_marks(Marks(checked=["nope"]), store, None, TODAY, IngestionReport())
     assert store.tasks == []
+
+
+def _ok():
+    from daily_sheet.models import SectionStatus
+    return SectionStatus()

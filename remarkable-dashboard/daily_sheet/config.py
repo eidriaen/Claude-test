@@ -19,6 +19,7 @@ PAGE_H = 1872
 class Config:
     ics_url: str
     asana_pat: str
+    asana_board: str
     anthropic_api_key: str
     rmapi_bin: str
     remarkable_folder: str
@@ -42,6 +43,8 @@ def load_config(use_fixtures: bool = False, dry_run: bool = False) -> Config:
     return Config(
         ics_url=os.getenv("ICS_URL", "").strip(),
         asana_pat=os.getenv("ASANA_PAT", "").strip(),
+        asana_board=os.getenv("ASANA_BOARD", "Incoming + active projects").strip()
+                    or "Incoming + active projects",
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip(),
         rmapi_bin=os.getenv("RMAPI_BIN", "rmapi").strip() or "rmapi",
         remarkable_folder=os.getenv("REMARKABLE_FOLDER", "Daily").strip() or "Daily",

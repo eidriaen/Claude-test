@@ -58,22 +58,28 @@ def _annotate(pdf: Path, layout: dict, tick_ids: set[str], out_pdf: Path) -> Pat
     return out_pdf
 
 
+class FakeAsana:
+    """Records completions instead of calling Asana."""
+    def __init__(self):
+        self.completed: list[str] = []
+        self.created: list[str] = []
+
+    def complete(self, gid): self.completed.append(gid)
+    def create_task(self, title, workspace_gid=None): self.created.append(title); return "new"
+
+
 @pytest.fixture
 def project(tmp_path, monkeypatch):
-    """A task store with known ids, plus a rendered sheet for it."""
+    """A rendered sheet built from the fixture Asana tasks."""
     tasks_file = tmp_path / "tasks.json"
-    tasks_file.write_text(json.dumps([
-        Task("aaa", "Ring tannlegen", 1, "open", "manual", "2026-09-01").to_json(),
-        Task("bbb", "Levere bilen", 2, "open", "manual", "2026-09-08").to_json(),
-        Task("ccc", "Kjøpe gave", 3, "open", "manual", "2026-09-10").to_json(),
-    ]))
+    tasks_file.write_text("[]")
     store = TaskStore(tasks_file)
 
     cfg = load_config(use_fixtures=True)
     monday = TODAY - timedelta(days=TODAY.weekday())
     events, est = load_events(cfg, monday - timedelta(days=7), monday + timedelta(days=14))
     asana_tasks, ast, _ = load_asana(cfg, TODAY)
-    data = SheetData(TODAY, events, est, store.open_tasks(), asana_tasks, ast, IngestionReport())
+    data = SheetData(TODAY, events, est, asana_tasks, ast, [], [], _ok(), IngestionReport())
     pdf, layout_path = render_sheet(data, tmp_path / "out")
 
     # never call the model in tests
@@ -84,18 +90,20 @@ def project(tmp_path, monkeypatch):
 
 
 def test_round_trip_completes_only_the_ticked_task(project):
-    annotated = _annotate(project["pdf"], project["layout"], {"aaa"}, project["tmp"] / "annotated.pdf")
+    """One tick must complete exactly one task -- neighbours must not bleed in."""
+    gids = [t.gid for t in project["asana_tasks"]]
+    target = gids[0]
+    annotated = _annotate(project["pdf"], project["layout"], {target},
+                          project["tmp"] / "annotated.pdf")
     marks = read_marks(annotated, project["layout_path"], api_key="")
 
-    assert marks.checked == ["aaa"], f"expected only 'aaa', got {marks.checked}"
+    assert marks.checked == [target], f"expected only {target!r}, got {marks.checked}"
 
-    store, report = project["store"], IngestionReport()
-    apply_marks(marks, store, None, TODAY, report)
+    asana, report = FakeAsana(), IngestionReport()
+    apply_marks(marks, project["store"], asana, TODAY, report)
 
-    assert store.by_id("aaa").status == "done"
-    assert store.by_id("bbb").status == "open"
-    assert store.by_id("ccc").status == "open"
-    assert report.completed_private == ["Ring tannlegen"]
+    assert asana.completed == [target]
+    assert set(gids[1:]).isdisjoint(asana.completed), "untouched rows must stay open"
 
 
 def test_round_trip_with_nothing_ticked_changes_nothing(project):
@@ -110,39 +118,39 @@ def test_round_trip_with_nothing_ticked_changes_nothing(project):
     assert json.dumps([t.to_json() for t in store.tasks], sort_keys=True) == before
 
 
-def test_round_trip_ticking_several_including_asana(project):
-    """A task on the Tasks page and an Asana task on the Asana page, one pass."""
-    asana_gid = project["asana_tasks"][0].gid
-    annotated = _annotate(project["pdf"], project["layout"], {"bbb", "ccc", asana_gid},
+def test_round_trip_ticking_several(project):
+    """Several ticks in one pass, each completed in Asana exactly once."""
+    gids = [t.gid for t in project["asana_tasks"]][:3]
+    annotated = _annotate(project["pdf"], project["layout"], set(gids),
                           project["tmp"] / "multi.pdf")
     marks = read_marks(annotated, project["layout_path"], api_key="")
 
-    assert set(marks.checked) == {"bbb", "ccc", asana_gid}
+    assert set(marks.checked) == set(gids)
 
-    store, asana, report = project["store"], FakeAsana(), IngestionReport()
-    apply_marks(marks, store, asana, TODAY, report)
+    asana, report = FakeAsana(), IngestionReport()
+    apply_marks(marks, project["store"], asana, TODAY, report)
 
-    assert store.by_id("bbb").status == "done"
-    assert store.by_id("ccc").status == "done"
-    assert store.by_id("aaa").status == "open"
-    assert asana.completed == [asana_gid], "the Asana task should be completed exactly once"
-    assert report.completed == 3
+    assert sorted(asana.completed) == sorted(gids)
+    assert len(asana.completed) == len(set(asana.completed)), "no task completed twice"
+    assert report.completed == len(gids)
 
 
-def test_a_task_appears_on_todays_sheet_only_while_open(project, tmp_path):
-    """Completing a task removes its checkbox from the next sheet."""
-    store = project["store"]
-    store.complete("aaa", TODAY)
+def test_a_task_appears_on_the_sheet_only_while_open(project, tmp_path):
+    """A task completed in Asana must not get a checkbox on the next sheet.
 
-    cfg = load_config(use_fixtures=True)
+    The sheet is rendered from whatever Asana returns as incomplete, so this
+    pins the contract that the renderer draws only what it is given -- a stale
+    row would invite ticking something already done.
+    """
+    remaining = project["asana_tasks"][1:]
+    gone = project["asana_tasks"][0].gid
     tomorrow = TODAY + timedelta(days=1)
-    data = SheetData(tomorrow, [], project["layout"] and _ok(), store.open_tasks(), [], _ok(),
-                     IngestionReport())
+    data = SheetData(tomorrow, [], _ok(), remaining, _ok(), [], [], _ok(), IngestionReport())
     _, layout_path = render_sheet(data, tmp_path / "out2")
     ids = {r["id"] for r in json.loads(layout_path.read_text())["regions"] if r["kind"] == "check"}
 
-    assert "aaa" not in ids, "a completed task must not come back tomorrow"
-    assert {"bbb", "ccc"} <= ids
+    assert gone not in ids, "a completed task must not come back tomorrow"
+    assert {t.gid for t in remaining} <= ids
 
 
 def _ok():

@@ -16,7 +16,7 @@ from reportlab.pdfgen import canvas as rl_canvas
 
 from .calendar_ics import events_on
 from .config import PAGE_H, PAGE_W, TZ
-from .models import AsanaTask, Event, IngestionReport, Region, SectionStatus, Task
+from .models import AsanaTask, Event, IngestionReport, ProjectCard, Region, SectionStatus
 
 # --- typographic system -----------------------------------------------------
 F = "Helvetica"
@@ -38,7 +38,7 @@ MONTHS = ["January", "February", "March", "April", "May", "June", "July",
           "August", "September", "October", "November", "December"]
 MONTHS_SHORT = [m[:3] for m in MONTHS]
 
-NAV_ITEMS = [("Today", "today"), ("Week", "week"), ("Tasks", "tasks"), ("Asana", "asana"), ("Notes", "notes")]
+NAV_ITEMS = [("Today", "today"), ("Week", "week"), ("Tasks", "tasks"), ("Projects", "projects"), ("Notes", "notes")]
 
 
 def _Y(y: float) -> float:
@@ -97,9 +97,11 @@ class SheetData:
     today: date
     events: list[Event]                 # last / this / next week
     events_status: SectionStatus
-    private_tasks: list[Task]           # open, sorted
-    asana_tasks: list[AsanaTask]        # incomplete, sorted
+    asana_tasks: list[AsanaTask]        # incomplete, assigned to me, sorted
     asana_status: SectionStatus
+    projects: list[ProjectCard]         # pipeline board cards
+    project_sections: list[str]         # section names, in board order
+    projects_status: SectionStatus
     report: IngestionReport
     unreadable_pngs: list[Path] = field(default_factory=list)
 
@@ -120,6 +122,7 @@ class Renderer:
     TASK_ROWS_FULL = 20          # rows when the page has no "New tasks" box
     TASK_ROWS_WITH_BOX = 13
     ASANA_ROWS = 20
+    PROJECT_ROWS = 22           # section headers + cards per Projects page
 
     def __init__(self, data: SheetData, out_pdf: Path, out_layout: Path):
         self.d = data
@@ -136,23 +139,58 @@ class Renderer:
         for off in (-1, 0, 1):
             pages.append(PageSpec("week", len(pages) + 1, week_offset=off))
 
-        tasks = self.d.private_tasks
-        chunks: list[list[Task]] = []
-        rest = list(tasks)
+        rest = list(self.d.asana_tasks)
+        chunks: list[list] = []
         while len(rest) > self.TASK_ROWS_WITH_BOX:
             chunks.append(rest[: self.TASK_ROWS_FULL])
             rest = rest[self.TASK_ROWS_FULL:]
         chunks.append(rest)
         for i, ch in enumerate(chunks, 1):
-            pages.append(PageSpec("tasks", len(pages) + 1, items=ch, idx=i, total=len(chunks), last=i == len(chunks)))
+            pages.append(PageSpec("tasks", len(pages) + 1, items=ch, idx=i,
+                                  total=len(chunks), last=i == len(chunks)))
 
-        asana = self.d.asana_tasks or [None]  # at least one page, even when empty
-        achunks = [asana[i:i + self.ASANA_ROWS] for i in range(0, len(asana), self.ASANA_ROWS)]
-        for i, ch in enumerate(achunks, 1):
-            pages.append(PageSpec("asana", len(pages) + 1, items=[a for a in ch if a], idx=i, total=len(achunks), last=i == len(achunks)))
+        proj_pages = self._project_pages()
+        for i, ch in enumerate(proj_pages, 1):
+            pages.append(PageSpec("projects", len(pages) + 1, items=ch, idx=i,
+                                  total=len(proj_pages), last=i == len(proj_pages)))
 
         pages.append(PageSpec("notes", len(pages) + 1))
         return pages
+
+    def _project_pages(self) -> list[list[tuple[str, list]]]:
+        """Group cards by board section, then split into page-sized chunks.
+
+        A section header plus its cards is kept together where it fits; a long
+        section spills to the next page under a "(cont.)" header rather than
+        being shrunk.
+        """
+        if not hasattr(self, "_proj_cache"):
+            by_section: dict[str, list] = {}
+            for c in self.d.projects:
+                by_section.setdefault(c.section, []).append(c)
+            order = [s for s in self.d.project_sections if s in by_section]
+            order += [s for s in by_section if s not in order]
+
+            pages: list[list[tuple[str, list]]] = []
+            page: list[tuple[str, list]] = []
+            used = 0
+            for name in order:
+                cards = by_section[name]
+                i = 0
+                while i < len(cards):
+                    room = self.PROJECT_ROWS - used - 1        # -1 for the header
+                    if room < 1:
+                        pages.append(page)
+                        page, used, room = [], 0, self.PROJECT_ROWS - 1
+                    take = cards[i:i + room]
+                    label = name if i == 0 else f"{name} (cont.)"
+                    page.append((label, take))
+                    used += len(take) + 1
+                    i += len(take)
+            if page:
+                pages.append(page)
+            self._proj_cache = pages or [[]]
+        return self._proj_cache
 
     def first_page_of(self, kind: str) -> int:
         if kind == "week":       # nav goes to *this* week, not last week
@@ -313,8 +351,6 @@ class Renderer:
     def _top3(self) -> list[tuple[str, str, str]]:
         """(region id, label, tag) across both lists. Score: lower is more urgent."""
         scored: list[tuple[float, str, str, str]] = []
-        for t in self.d.private_tasks:
-            scored.append((t.priority + 0.1, t.id, t.title, f"P{t.priority}"))
         for a in self.d.asana_tasks:
             if a.due is None:
                 s = 3.5
@@ -326,7 +362,7 @@ class Renderer:
                 s = 2.2
             else:
                 s = 3.2
-            tag = "Asana · " + (_due_label(a.due, self.d.today) if a.due else "no date")
+            tag = _due_label(a.due, self.d.today) if a.due else "no due date"
             scored.append((s, a.gid, a.name, tag))
         scored.sort(key=lambda x: x[0])
         return [(rid, label, tag) for _, rid, label, tag in scored[:3]]
@@ -384,54 +420,14 @@ class Renderer:
         self.footer(page)
 
     def page_tasks(self, page: PageSpec):
+        """Asana tasks assigned to me. Ticking a box completes them in Asana."""
         if page.idx == 1:
             self.c.bookmarkPage("sec-tasks")
         self.nav("tasks")
         y = CONTENT_TOP + 36
         title = "Tasks" + (f"  {page.idx}/{page.total}" if page.total > 1 else "")
         self.text(M, y, title, FB, 36)
-        self.text(PAGE_W - M, y, "tick = done  ·  digit in grey box = new priority", F, 18, GREY, align="right")
-        self.line(M, y + 16, PAGE_W - M, y + 16, 1.5)
-
-        ry = y + 40
-        for t in page.items:
-            self.checkbox(t.id, page.n, M, ry + 14)
-            self.priority_box(t.id, page.n, M + BOX + 16, ry + 14, t.priority)
-            tx = M + 2 * BOX + 40
-            carried = t.carried_days(self.d.today)
-            tag = f"carried {carried}d" if carried > 3 else ""
-            tag_w = pdfmetrics.stringWidth(tag, F, 18) + 24 if tag else 0
-            self.text(tx, ry + 46, _fit(t.title, FB if t.priority == 1 else F, 26, PAGE_W - M - tx - tag_w), FB if t.priority == 1 else F, 26)
-            if tag:
-                self.text(PAGE_W - M, ry + 46, tag, F, 18, GREY, align="right")
-            self.line(M, ry + ROW_H, PAGE_W - M, ry + ROW_H, 0.75, RULE)
-            ry += ROW_H
-        if not page.items and page.idx == 1:
-            self.text(M, ry + 44, "No open tasks.", F, 24, GREY)
-            ry += ROW_H
-
-        if page.last:
-            by = max(ry + 50, PAGE_H - 60 - 6 * 80 - 60)
-            self.text(M, by, "New tasks", FB, 28)
-            self.text(PAGE_W - M, by, "one per line  ·  ! = P2  ·  !! = P1", F, 18, GREY, align="right")
-            box_top = by + 20
-            box_h = PAGE_H - 60 - box_top
-            lines = max(6, int(box_h // 80))
-            line_h = box_h / lines
-            self.rect(M, box_top, PAGE_W - 2 * M, box_h, stroke=2)
-            for i in range(1, lines):
-                self.line(M, box_top + i * line_h, PAGE_W - M, box_top + i * line_h, 0.75, RULE)
-            self.region("newtasks", "newtasks", page.n, M, box_top, PAGE_W - 2 * M, box_h, int(line_h))
-        self.footer(page)
-
-    def page_asana(self, page: PageSpec):
-        if page.idx == 1:
-            self.c.bookmarkPage("sec-asana")
-        self.nav("asana")
-        y = CONTENT_TOP + 36
-        title = "Asana" + (f"  {page.idx}/{page.total}" if page.total > 1 else "")
-        self.text(M, y, title, FB, 36)
-        self.text(PAGE_W - M, y, "tick = mark complete in Asana", F, 18, GREY, align="right")
+        self.text(PAGE_W - M, y, "tick = complete in Asana", F, 18, GREY, align="right")
         self.line(M, y + 16, PAGE_W - M, y + 16, 1.5)
 
         if not self.d.asana_status.ok:
@@ -446,15 +442,88 @@ class Renderer:
             self.checkbox(a.gid, page.n, M, ry + 14)
             tx = M + BOX + 20
             name_w = PAGE_W - M - tx - due_col - 20
-            self.text(tx, ry + 34, _fit(a.name, FB if overdue else F, 25, name_w), FB if overdue else F, 25)
+            self.text(tx, ry + 34, _fit(a.name, FB if overdue else F, 25, name_w),
+                      FB if overdue else F, 25)
             if a.project:
                 self.text(tx, ry + 60, _fit(a.project, F, 17, name_w), F, 17, GREY)
             due = _due_label(a.due, self.d.today) if a.due else "—"
-            self.text(PAGE_W - M, ry + 42, due, FB if overdue else F, 21, black if overdue else GREY, align="right")
+            self.text(PAGE_W - M, ry + 42, due, FB if overdue else F, 21,
+                      black if overdue else GREY, align="right")
             self.line(M, ry + ROW_H, PAGE_W - M, ry + ROW_H, 0.75, RULE)
             ry += ROW_H
-        if not page.items:
+        if not page.items and page.idx == 1:
             self.text(M, ry + 44, "Nothing assigned to you.", F, 24, GREY)
+            ry += ROW_H
+
+        if page.last:
+            by = max(ry + 50, PAGE_H - 60 - 6 * 80 - 60)
+            self.text(M, by, "New tasks", FB, 28)
+            self.text(PAGE_W - M, by, "one per line  ·  goes to Asana", F, 18, GREY, align="right")
+            box_top = by + 20
+            box_h = PAGE_H - 60 - box_top
+            lines = max(6, int(box_h // 80))
+            line_h = box_h / lines
+            self.rect(M, box_top, PAGE_W - 2 * M, box_h, stroke=2)
+            for i in range(1, lines):
+                self.line(M, box_top + i * line_h, PAGE_W - M, box_top + i * line_h, 0.75, RULE)
+            self.region("newtasks", "newtasks", page.n, M, box_top, PAGE_W - 2 * M, box_h, int(line_h))
+        self.footer(page)
+
+    def page_projects(self, page: PageSpec):
+        """The pipeline board, grouped by section, in board order.
+
+        Read-only: these are deals, not to-dos, and moving one between sections
+        is a judgement call that belongs in Asana rather than a tick box.
+        """
+        if page.idx == 1:
+            self.c.bookmarkPage("sec-projects")
+        self.nav("projects")
+        y = CONTENT_TOP + 36
+        title = "Projects" + (f"  {page.idx}/{page.total}" if page.total > 1 else "")
+        self.text(M, y, title, FB, 36)
+
+        if not self.d.projects_status.ok:
+            self.line(M, y + 16, PAGE_W - M, y + 16, 1.5)
+            self.unavailable(y + 50, "Project board", self.d.projects_status)
+            self.footer(page)
+            return
+
+        total = sum(c.budget or 0 for c in self.d.projects)
+        if total and page.idx == 1:
+            self.text(PAGE_W - M, y, f"pipeline {_kr(total)}", FB, 22, align="right")
+        self.line(M, y + 16, PAGE_W - M, y + 16, 1.5)
+
+        ry = y + 44
+        for section, cards in page.items:
+            sub = sum(c.budget or 0 for c in cards)
+            self.rect(M, ry - 4, PAGE_W - 2 * M, 34, stroke=0, fill=Color(0.92, 0.92, 0.90))
+            self.text(M + 10, ry + 20, _fit(section.upper(), FB, 19, PAGE_W - 2 * M - 200), FB, 19)
+            if sub:
+                self.text(PAGE_W - M - 10, ry + 20, _kr(sub), F, 18, GREY, align="right")
+            ry += 42
+
+            for c in cards:
+                budget = c.budget_str()
+                bw = pdfmetrics.stringWidth(budget, FB, 21) + 20 if budget else 0
+                self.text(M + 14, ry + 22, _fit(c.name, F, 23, PAGE_W - 2 * M - bw - 30), F, 23)
+                if budget:
+                    self.text(PAGE_W - M, ry + 22, budget, FB, 21, align="right")
+
+                bits = [v for _, v in c.fields][:3]
+                if c.due:
+                    bits.append(_due_label(c.due, self.d.today))
+                if bits:
+                    self.text(M + 14, ry + 44, _fit("  ·  ".join(bits), F, 17,
+                                                    PAGE_W - 2 * M - 30), F, 17, GREY)
+                    ry += 56
+                else:
+                    ry += 38
+                if ry > PAGE_H - 90:
+                    break
+            ry += 8
+
+        if not page.items:
+            self.text(M, ry + 30, "No cards on the board.", F, 24, GREY)
         self.footer(page)
 
     def page_notes(self, page: PageSpec):
@@ -476,7 +545,7 @@ class Renderer:
     # -- run ------------------------------------------------------------
     def render(self) -> None:
         draw = {"today": self.page_today, "week": self.page_week, "tasks": self.page_tasks,
-                "asana": self.page_asana, "notes": self.page_notes}
+                "projects": self.page_projects, "notes": self.page_notes}
         for page in self.pages:
             draw[page.kind](page)
             self.c.showPage()
@@ -489,6 +558,11 @@ class Renderer:
             "regions": [r.to_json() for r in self.regions],
         }
         self.out_layout.write_text(json.dumps(layout, indent=2), encoding="utf-8")
+
+
+def _kr(amount: float) -> str:
+    """Norwegian thousands grouping — 1 250 000 kr."""
+    return f"{amount:,.0f}".replace(",", " ") + " kr"
 
 
 def _due_label(d: date, today: date) -> str:

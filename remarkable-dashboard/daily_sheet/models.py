@@ -64,6 +64,29 @@ class AsanaTask:
 
 
 @dataclass
+class ProjectCard:
+    """One card on the pipeline board.
+
+    `budget` is whatever numeric custom field reads as money; `fields` holds the
+    other custom values worth printing, in board order. Both are discovered at
+    fetch time rather than hard-coded, because custom field names are per
+    workspace and renaming one in Asana should not blank the page.
+    """
+    gid: str
+    name: str
+    section: str
+    budget: Optional[float] = None
+    fields: list[tuple[str, str]] = field(default_factory=list)
+    due: Optional[date] = None
+
+    def budget_str(self) -> str:
+        """Norwegian thousands grouping: 1 250 000 kr."""
+        if self.budget is None:
+            return ""
+        return f"{self.budget:,.0f}".replace(",", " ") + " kr"
+
+
+@dataclass
 class SectionStatus:
     """Per-source fetch status so a failing source still ships the sheet."""
     ok: bool = True

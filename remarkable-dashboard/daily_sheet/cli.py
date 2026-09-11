@@ -19,7 +19,7 @@ import traceback
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from .asana_client import load_asana
+from .asana_client import load_asana, load_board
 from .calendar_ics import load_events
 from .config import Config, load_config
 from .models import IngestionReport, SectionStatus
@@ -113,12 +113,21 @@ def apply_marks(marks: Marks, store: TaskStore, asana, today: date, report: Inge
 
     for line in marks.new_tasks:
         parsed = parse_pen_line(line)
-        if parsed:
-            title, prio = parsed
-            if title.strip().lower() in seen:
+        if not parsed:
+            continue
+        title, prio = parsed
+        if title.strip().lower() in seen:
+            continue
+        # Everything lives in Asana now; tasks.json only keeps a local record so
+        # a handwritten line is not lost if the Asana write fails.
+        store.add(title, prio, source="pen", today=today)
+        if asana is not None:
+            try:
+                asana.create_task(title)
+            except Exception as exc:  # noqa: BLE001
+                report.unreadable.append(f"could not create '{title}' in Asana: {exc}")
                 continue
-            store.add(title, prio, source="pen", today=today)
-            report.added.append(title)
+        report.added.append(title)
 
     report.unreadable.extend(str(p) for p in marks.unreadable)
 
@@ -167,6 +176,72 @@ def ingest_today(cfg: Config, rm: Rmapi, store: TaskStore, asana, today: date,
     state["added"] = sorted(already | {t.lower() for t in report.added})
     state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
     return True
+
+
+# --- board: what the Projects page will be built from ------------------------
+def inspect_board(cfg: Config, name: str) -> int:
+    """Print the board's sections, custom fields, and a sample card.
+
+    Custom field names are per workspace, so the Projects page discovers them
+    rather than hard-coding. This shows what it found, which is the quickest way
+    to see why a column is blank or a budget is not being picked up.
+    """
+    from .asana_client import AsanaClient, _money
+
+    client = AsanaClient(cfg, date.today())
+    try:
+        found = client.find_project(name)
+    except Exception as exc:  # noqa: BLE001
+        print(f"\n  Asana error: {type(exc).__name__}: {exc}\n")
+        return 1
+    if not found:
+        print(f"\n  No board called {name!r} in your workspaces.")
+        print("  Check the exact name in Asana, then set ASANA_BOARD in .env.\n")
+        return 1
+
+    gid, _ws = found
+    print(f"\n  Board: {name}   (gid {gid})")
+
+    try:
+        sections = client.sections(gid)
+        cards = client.board(gid)
+    except Exception as exc:  # noqa: BLE001
+        print(f"  Could not read the board: {type(exc).__name__}: {exc}\n")
+        return 1
+
+    print(f"\n  Sections ({len(sections)}), in board order:")
+    counts: dict[str, int] = {}
+    for c in cards:
+        counts[c.section] = counts.get(c.section, 0) + 1
+    for s in sections:
+        print(f"    {s}  —  {counts.get(s, 0)} card(s)")
+    stray = sorted(set(counts) - set(sections))
+    for s in stray:
+        print(f"    {s}  —  {counts[s]} card(s)   (not a board section)")
+
+    labels: dict[str, str] = {}
+    for c in cards:
+        for label, value in c.fields:
+            labels.setdefault(label, value)
+    print(f"\n  Custom fields seen on cards ({len(labels)}):")
+    for label, sample in labels.items():
+        print(f"    {label:<28} e.g. {sample!r}")
+    budgeted = [c for c in cards if c.budget is not None]
+    print(f"\n  Read as budget: {len(budgeted)} of {len(cards)} cards")
+    if not budgeted and labels:
+        guess = [l for l in labels if _money(l)]
+        print("    No numeric field matched a money-ish name.")
+        print(f"    Candidates by name: {guess or 'none'}")
+        print("    Tell me the real field name and I'll match it exactly.")
+
+    if cards:
+        c = cards[0]
+        print(f"\n  Sample card:\n    name    {c.name}\n    section {c.section}")
+        print(f"    budget  {c.budget_str() or '(none)'}")
+        for label, value in c.fields:
+            print(f"    {label:<7} {value}")
+    print()
+    return 0
 
 
 # --- tablet: what is actually up there --------------------------------------
@@ -290,6 +365,10 @@ def generate(cfg: Config, today: date) -> int:
     if refreshing:
         log(cfg, "refreshing today's sheet — read its marks first")
 
+    projects, project_sections, projects_status = load_board(cfg, asana, today)
+    if not projects_status.ok:
+        log(cfg, f"warn: project board unavailable — {projects_status.error}")
+
     monday = today - timedelta(days=today.weekday())
     events, events_status = load_events(cfg, monday - timedelta(days=7), monday + timedelta(days=14))
     if not events_status.ok:
@@ -306,9 +385,11 @@ def generate(cfg: Config, today: date) -> int:
         today=today,
         events=events,
         events_status=events_status,
-        private_tasks=store.open_tasks(),
         asana_tasks=asana_tasks,
         asana_status=asana_status,
+        projects=projects,
+        project_sections=project_sections,
+        projects_status=projects_status,
         report=report,
         unreadable_pngs=strips,
     )
@@ -336,7 +417,7 @@ def generate(cfg: Config, today: date) -> int:
 
     # 7. summary
     log(cfg, f"{today.isoformat()}  {report.summary()}  ·  "
-             f"{len(data.private_tasks)} open · {len(asana_tasks)} asana · "
+             f"{len(asana_tasks)} tasks · {len(projects)} projects · "
              f"{len(events)} events · {pdf.name}")
     return 0
 
@@ -396,6 +477,9 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("sync", help="read today's ticks and push them to Asana now")
     s.add_argument("--date", help="sync this date's sheet instead of today (YYYY-MM-DD)")
 
+    b = sub.add_parser("board", help="show the Asana board the Projects page is built from")
+    b.add_argument("--name", help="board name (default: ASANA_BOARD from .env)")
+
     sub.add_parser("tablet", help="list the sheets on the tablet")
     sub.add_parser("doctor", help="check every connection and report what's broken")
 
@@ -410,6 +494,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "tablet":
         return tablet(load_config())
+
+    if args.cmd == "board":
+        cfg = load_config()
+        return inspect_board(cfg, args.name or cfg.asana_board)
 
     if args.cmd == "sync":
         cfg = load_config()
