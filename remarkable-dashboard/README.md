@@ -160,11 +160,14 @@ On the phone, open:
     http://192.168.1.40:8080/?t=Xk8sP2mq…
 ```
 
-Open that on the phone, then **Share → Add to Home Screen**. It opens
-full-screen with an icon and remembers the token, so afterwards it is one tap
-to `Sync + Generate Daily`. The token is stored on the phone only — it is
-stripped from the address bar as soon as the page loads, so a screenshot of the
-URL gives nothing away.
+Open that on the phone. To install it, tap **Home screen** at the bottom of the
+page *first*, then **Share → Add to Home Screen** — that route carries the
+token into the installed app, which otherwise gets its own storage on iOS and
+asks for the token all over again.
+
+It opens full-screen with an icon, so afterwards it is one tap to
+`Sync + Generate Daily`. On a normal open the token is stripped from the
+address bar, so a screenshot of the URL gives nothing away.
 
 Set `WEB_TOKEN` in `.env` before relying on it. Leave it blank and the server
 invents one at every restart, which locks the phone out after a reboot:
