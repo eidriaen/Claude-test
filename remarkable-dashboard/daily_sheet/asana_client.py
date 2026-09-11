@@ -16,6 +16,28 @@ API = "https://app.asana.com/api/1.0"
 _MONEY_WORDS = ("budsjett", "budget", "kr", "nok", "verdi", "value", "beløp", "belop", "pris")
 
 
+PRIORITY_NAMES = ("high", "medium", "low")
+
+
+def _priority_of(task: dict) -> tuple[str, str, dict]:
+    """(current value, field gid, {option name: gid}) for the Priority field.
+
+    Found by looking for an enum field whose options look like a priority scale
+    rather than by field name, so 'Priority', 'Prioritet' or 'Prio' all work.
+    """
+    for cf in task.get("custom_fields", []):
+        options = {(o.get("name") or "").strip(): o.get("gid", "")
+                   for o in cf.get("enum_options", []) if o.get("name")}
+        if not options:
+            continue
+        lowered = {n.lower() for n in options}
+        if not lowered & set(PRIORITY_NAMES):
+            continue
+        current = ((cf.get("enum_value") or {}).get("name") or "").strip()
+        return current, cf.get("gid", ""), options
+    return "", "", {}
+
+
 def _money(label: str) -> bool:
     low = label.lower()
     return any(w in low for w in _MONEY_WORDS)
@@ -49,7 +71,10 @@ class AsanaClient:
             "workspace": workspace_gid,
             "completed_since": "now",          # incomplete only
             "limit": 100,
-            "opt_fields": "name,due_on,due_at,completed,projects.name,permalink_url",
+            "opt_fields": ("name,due_on,due_at,completed,projects.name,permalink_url,"
+                           "custom_fields.gid,custom_fields.name,"
+                           "custom_fields.enum_value.name,"
+                           "custom_fields.enum_options.gid,custom_fields.enum_options.name"),
         }
         url = f"{API}/tasks"
         while url:
@@ -60,12 +85,14 @@ class AsanaClient:
                 if t.get("completed"):
                     continue
                 due = t.get("due_on") or (t.get("due_at") or "")[:10] or None
+                prio, field_gid, options = _priority_of(t)
                 out.append(AsanaTask(
                     gid=t["gid"],
                     name=(t.get("name") or "").strip() or "(untitled)",
                     project=", ".join(p.get("name", "") for p in t.get("projects", []) if p.get("name")),
                     due=date.fromisoformat(due) if due else None,
                     permalink=t.get("permalink_url", ""),
+                    priority=prio, priority_field=field_gid, priority_options=options,
                 ))
             nxt = (body.get("next_page") or {}).get("uri")
             url, params = (nxt, None) if nxt else (None, None)
@@ -196,6 +223,20 @@ class AsanaClient:
         r = self._session.put(f"{API}/tasks/{gid}", json={"data": {"completed": True}}, timeout=20)
         r.raise_for_status()
 
+    def set_priority(self, task: AsanaTask, value: str) -> None:
+        """Set the Priority enum on one task. No-op if the board has no such field."""
+        if self.cfg.use_fixtures or self.cfg.dry_run:
+            return
+        if not task.priority_field:
+            raise RuntimeError("this task has no Priority field")
+        match = next((n for n in task.priority_options if n.lower() == value.lower()), None)
+        if match is None:
+            raise RuntimeError(f"no Priority option called {value!r}")
+        r = self._session.put(f"{API}/tasks/{task.gid}", timeout=20, json={"data": {
+            "custom_fields": {task.priority_field: task.priority_options[match]},
+        }})
+        r.raise_for_status()
+
     def create_task(self, title: str, workspace_gid: str | None = None) -> str | None:
         """Create a task assigned to me. Returns its gid, or None in dry-run."""
         if self.cfg.use_fixtures or self.cfg.dry_run:
@@ -219,13 +260,22 @@ class AsanaClient:
         for t in raw:
             # fixture due_on is an offset in days from today so the sample stays relevant
             due = self.today + timedelta(days=int(t["due_on"])) if t.get("due_on") is not None else None
-            out.append(AsanaTask(gid=t["gid"], name=t["name"], project=t.get("project", ""), due=due))
+            out.append(AsanaTask(
+                gid=t["gid"], name=t["name"], project=t.get("project", ""), due=due,
+                priority=t.get("priority", ""),
+                priority_field="fixture-field",
+                priority_options={"High": "o1", "Medium": "o2", "Low": "o3"}))
         return sort_asana(out)
 
 
 def sort_asana(tasks: list[AsanaTask]) -> list[AsanaTask]:
-    """Due date ascending, overdue first; undated last."""
-    return sorted(tasks, key=lambda t: (t.due is None, t.due or date.max, t.name.lower()))
+    """Priority first, then due date ascending with undated last.
+
+    Priority leads because it is the judgement you made about the task; the due
+    date is only when it happens to be scheduled.
+    """
+    return sorted(tasks, key=lambda t: (t.rank(), t.due is None, t.due or date.max,
+                                        t.name.lower()))
 
 
 def load_asana(cfg: Config, today: date) -> tuple[list[AsanaTask], SectionStatus, AsanaClient | None]:

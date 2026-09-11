@@ -29,7 +29,10 @@ NAV_H = 72             # nav bar tap height (≥ 44)
 NAV_Y = 40
 CONTENT_TOP = NAV_Y + NAV_H + 40
 BOX = 44               # checkbox / priority box side
+PBOX = 40              # H/M/L selector box side (still >= 44 with its gap)
+PRIO = ("High", "Medium", "Low")
 ROW_H = 72
+PRIO_ROW_H = 84        # task rows carry the H/M/L picker, so they need more height
 HOUR_FIRST, HOUR_LAST = 7, 20      # grid shows 07:00 … 21:00
 
 DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -119,8 +122,8 @@ class PageSpec:
 
 # --- renderer ---------------------------------------------------------------
 class Renderer:
-    TASK_ROWS_FULL = 20          # rows when the page has no "New tasks" box
-    TASK_ROWS_WITH_BOX = 13
+    TASK_ROWS_FULL = 17          # rows when the page has no "New tasks" box
+    TASK_ROWS_WITH_BOX = 11
     ASANA_ROWS = 20
     PROJECT_ROWS = 22           # section headers + cards per Projects page
 
@@ -242,6 +245,31 @@ class Renderer:
             pass
         self.region(rid, "check", page, x, y, BOX, BOX)
 
+    def priority_picker(self, task, page: int, x, y) -> float:
+        """Three boxes -- H M L -- one per Asana priority. Returns the width used.
+
+        The task's current priority is shown by a bar *under* its box rather
+        than inside it. Ink inside a box is what read-back measures, so drawing
+        the current state there would read as a fresh choice on every run and
+        the priority could never be changed.
+        """
+        gap = 10
+        for i, name in enumerate(PRIO):
+            bx = x + i * (PBOX + gap)
+            self.rect(bx, y, PBOX, PBOX, stroke=1.5, color=GREY)
+            # The H/M/L letters live in a column header, not in the boxes: ink
+            # inside a box is exactly what read-back measures, so a printed
+            # glyph there reads as a mark and every row arrives ambiguous.
+            if task.priority.lower() == name.lower():
+                self.rect(bx, y + PBOX + 4, PBOX, 5, stroke=0, fill=black)
+            self.region(f"{task.gid}|{name}", "prio3", page, bx, y, PBOX, PBOX)
+        return 3 * PBOX + 2 * gap
+
+    def priority_header(self, x, y) -> None:
+        gap = 10
+        for i, name in enumerate(PRIO):
+            self.text(x + i * (PBOX + gap) + PBOX / 2, y, name[0], FB, 19, GREY, align="center")
+
     def priority_box(self, rid: str, page: int, x, y, current: int):
         self.rect(x, y, BOX, BOX, stroke=1.5, color=GREY)
         # tiny printed current priority in the corner; the pen digit goes in the middle
@@ -327,7 +355,9 @@ class Renderer:
 
         # top-3 priorities
         ty = gy + gh + 50
-        self.text(M, ty, "Top priorities", FB, 28)
+        label = "High priority" if any(
+            a.priority.lower() == "high" for a in self.d.asana_tasks) else "Most urgent"
+        self.text(M, ty, label, FB, 28)
         self.line(M, ty + 12, PAGE_W - M, ty + 12, 1.5)
         ry = ty + 30
         for tid, label, tag in self._top3()[:3]:
@@ -361,6 +391,14 @@ class Renderer:
 
     def _top3(self) -> list[tuple[str, str, str]]:
         """(region id, label, tag) across both lists. Score: lower is more urgent."""
+        high = [a for a in self.d.asana_tasks if a.priority.lower() == "high"]
+        if high:
+            return [(a.gid, a.name,
+                     _due_label(a.due, self.d.today) if a.due else "no due date")
+                    for a in high[:3]]
+
+        # Nothing marked High -- fall back to what is most urgent by date, so
+        # the block is never empty while there is open work.
         scored: list[tuple[float, str, str, str]] = []
         for a in self.d.asana_tasks:
             if a.due is None:
@@ -446,22 +484,31 @@ class Renderer:
             self.footer(page)
             return
 
-        ry = y + 40
-        due_col = 180
+        pick_w = 3 * PBOX + 2 * 10
+        due_col = 150
+        pick_x = PAGE_W - M - due_col - pick_w
+        if any(a.priority_options for a in page.items):
+            self.priority_header(pick_x, y + 38)
+        ry = y + 48
         for a in page.items:
             overdue = a.due is not None and a.due < self.d.today
-            self.checkbox(a.gid, page.n, M, ry + 14)
+            high = a.priority.lower() == "high"
+            self.checkbox(a.gid, page.n, M, ry + 16)
             tx = M + BOX + 20
-            name_w = PAGE_W - M - tx - due_col - 20
-            self.text(tx, ry + 34, _fit(a.name, FB if overdue else F, 25, name_w),
-                      FB if overdue else F, 25)
+            name_w = PAGE_W - M - tx - pick_w - due_col - 40
+            self.text(tx, ry + 36, _fit(a.name, FB if (overdue or high) else F, 25, name_w),
+                      FB if (overdue or high) else F, 25)
             if a.project:
-                self.text(tx, ry + 60, _fit(a.project, F, 17, name_w), F, 17, GREY)
+                self.text(tx, ry + 62, _fit(a.project, F, 17, name_w), F, 17, GREY)
+
             due = _due_label(a.due, self.d.today) if a.due else "—"
-            self.text(PAGE_W - M, ry + 42, due, FB if overdue else F, 21,
+            self.text(PAGE_W - M, ry + 44, due, FB if overdue else F, 20,
                       black if overdue else GREY, align="right")
-            self.line(M, ry + ROW_H, PAGE_W - M, ry + ROW_H, 0.75, RULE)
-            ry += ROW_H
+            if a.priority_options:
+                self.priority_picker(a, page.n, pick_x, ry + 12)
+
+            self.line(M, ry + PRIO_ROW_H, PAGE_W - M, ry + PRIO_ROW_H, 0.75, RULE)
+            ry += PRIO_ROW_H
         if not page.items and page.idx == 1:
             self.text(M, ry + 44, "Nothing assigned to you.", F, 24, GREY)
             ry += ROW_H

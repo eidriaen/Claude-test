@@ -61,6 +61,16 @@ class AsanaTask:
     project: str = ""
     due: Optional[date] = None
     permalink: str = ""
+    # Asana's Priority enum, carried with the option gids needed to change it.
+    # Kept on the task rather than looked up later because the field and its
+    # options are per project, so the task itself is the reliable source.
+    priority: str = ""                       # "High" | "Medium" | "Low" | ""
+    priority_field: str = ""                 # custom field gid
+    priority_options: dict = field(default_factory=dict)   # name -> option gid
+
+    def rank(self) -> int:
+        """0 High, 1 Medium, 2 Low, 3 unset — for sorting."""
+        return {"high": 0, "medium": 1, "low": 2}.get(self.priority.lower(), 3)
 
 
 @dataclass
@@ -98,6 +108,7 @@ class IngestionReport:
     completed_private: list[str] = field(default_factory=list)
     completed_asana: list[str] = field(default_factory=list)
     added: list[str] = field(default_factory=list)
+    priorities: list[str] = field(default_factory=list)   # "task -> High"
     unreadable: list[str] = field(default_factory=list)   # paths to PNG strips
     note: str = ""                                          # e.g. "no sheet found for yesterday"
 
@@ -107,6 +118,8 @@ class IngestionReport:
 
     def summary(self) -> str:
         parts = [f"Completed {self.completed}"]
+        if self.priorities:
+            parts.append(f"Reprioritised {len(self.priorities)}")
         added = f"Added {len(self.added)}"
         if self.added:
             added += " (" + ", ".join(self.added[:4]) + (", …" if len(self.added) > 4 else "") + ")"

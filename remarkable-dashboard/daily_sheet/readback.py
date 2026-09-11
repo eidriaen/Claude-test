@@ -39,9 +39,10 @@ class Marks:
     """What the pen said on yesterday's sheet."""
     checked: list[str] = field(default_factory=list)          # region ids
     priorities: dict[str, int] = field(default_factory=dict)  # region id -> 1|2|3
+    set_priority: dict[str, str] = field(default_factory=dict)  # task gid -> High|Medium|Low
     new_tasks: list[str] = field(default_factory=list)        # raw lines, unparsed
     notes: str = ""
-    unreadable: list[Path] = field(default_factory=list)      # PNG strips to re-show
+    unreadable: list = field(default_factory=list)            # PNG strips, or a note
     ink: dict[str, float] = field(default_factory=dict)       # region id -> ratio (debug)
 
 
@@ -223,6 +224,28 @@ def read_marks(pdf: Path, layout_path: Path, api_key: str, debug_dir: Path | Non
         if is_marked(img, r) and r.id not in seen:
             seen.add(r.id)
             marks.checked.append(r.id)
+
+    # 1b. H/M/L pickers. Ink in more than one box for the same task is a change
+    # of mind mid-stroke or a crossing-out, and guessing which was meant would
+    # silently set the wrong priority -- so the densest wins only if it is
+    # clearly ahead, and an ambiguous row is left alone.
+    picks: dict[str, list[tuple[float, str]]] = {}
+    for r in (r for r in regions if r.kind == "prio3"):
+        if r.page - 1 >= len(images) or "|" not in r.id:
+            continue
+        gid, name = r.id.split("|", 1)
+        ratio = ink_ratio(images[r.page - 1], r)
+        marks.ink[f"prio3:{r.id}"] = round(ratio, 4)
+        if ratio >= CHECK_MIN:
+            picks.setdefault(gid, []).append((ratio, name))
+
+    for gid, found in picks.items():
+        found.sort(reverse=True)
+        if len(found) > 1 and found[0][0] < found[1][0] * 1.6:
+            marks.unreadable.append(
+                f"priority for {gid}: {', '.join(n for _, n in found)} all marked")
+            continue
+        marks.set_priority[gid] = found[0][1]
 
     # 2. priority boxes — ink gate first, then one digit through Claude
     for r in (r for r in regions if r.kind == "priority"):

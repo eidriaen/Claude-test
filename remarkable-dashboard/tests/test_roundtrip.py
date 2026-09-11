@@ -51,7 +51,9 @@ def _annotate(pdf: Path, layout: dict, tick_ids: set[str], out_pdf: Path) -> Pat
     images = readback.page_images(pdf, size)
     regions = [Region.from_json(x) for x in layout["regions"]]
     for r in regions:
-        if r.kind == "check" and r.id in tick_ids:
+        # Any markable region, not just checkboxes -- the H/M/L pickers are
+        # marked the same way and must be exercised by the same helper.
+        if r.kind in ("check", "prio3") and r.id in tick_ids:
             _draw_tick(ImageDraw.Draw(images[r.page - 1]), r)
     rgb = [im.convert("RGB") for im in images]
     rgb[0].save(out_pdf, save_all=True, append_images=rgb[1:], resolution=72.0)
@@ -156,3 +158,44 @@ def test_a_task_appears_on_the_sheet_only_while_open(project, tmp_path):
 def _ok():
     from daily_sheet.models import SectionStatus
     return SectionStatus()
+
+
+def test_marking_a_priority_box_sets_that_priority(project):
+    """Marking H/M/L must set exactly that value, and only for that task."""
+    from daily_sheet.models import Region
+
+    layout = project["layout"]
+    pickers = [Region.from_json(r) for r in layout["regions"] if r["kind"] == "prio3"]
+    assert pickers, "the Tasks page must carry H/M/L pickers"
+
+    target = next(r for r in pickers if r.id.endswith("|Low"))
+    gid = target.id.split("|")[0]
+
+    annotated = _annotate(project["pdf"], layout, {target.id}, project["tmp"] / "prio.pdf")
+    marks = read_marks(annotated, project["layout_path"], api_key="")
+
+    assert marks.set_priority.get(gid) == "Low"
+    assert len(marks.set_priority) == 1, "one mark must not move other tasks"
+    assert gid not in marks.checked, "a priority mark must not complete the task"
+
+
+def test_two_priority_boxes_marked_is_left_alone(project):
+    """Ambiguity must not silently pick one.
+
+    Crossing out a box leaves ink in two; guessing would set a priority the
+    user did not choose, and they would have no way to tell it had happened.
+    """
+    from daily_sheet.models import Region
+
+    pickers = [Region.from_json(r) for r in project["layout"]["regions"]
+               if r["kind"] == "prio3"]
+    gid = pickers[0].id.split("|")[0]
+    both = {r.id for r in pickers if r.id.startswith(f"{gid}|")
+            and r.id.endswith(("|High", "|Low"))}
+
+    annotated = _annotate(project["pdf"], project["layout"], both,
+                          project["tmp"] / "ambig.pdf")
+    marks = read_marks(annotated, project["layout_path"], api_key="")
+
+    assert gid not in marks.set_priority, "an ambiguous row must be skipped"
+    assert any("priority" in str(u) for u in marks.unreadable), "and reported"

@@ -44,7 +44,8 @@ def sheet_name(d: date) -> str:
 
 
 # --- steps 1–3: read yesterday back ----------------------------------------
-def ingest_yesterday(cfg: Config, rm: Rmapi, store: TaskStore, asana, today: date) -> IngestionReport:
+def ingest_yesterday(cfg: Config, rm: Rmapi, store: TaskStore, asana, today: date,
+                     asana_tasks=None) -> IngestionReport:
     """Locate, read back, and archive yesterday's sheet. Never raises."""
     report = IngestionReport()
     yesterday = today - timedelta(days=1)
@@ -72,7 +73,7 @@ def ingest_yesterday(cfg: Config, rm: Rmapi, store: TaskStore, asana, today: dat
         report.note = f"Read-back failed: {type(exc).__name__}: {exc}"
         return report
 
-    apply_marks(marks, store, asana, today, report)
+    apply_marks(marks, store, asana, today, report, asana_tasks=asana_tasks)
     write_notes(cfg, marks.notes, yesterday)
 
     try:
@@ -83,7 +84,7 @@ def ingest_yesterday(cfg: Config, rm: Rmapi, store: TaskStore, asana, today: dat
 
 
 def apply_marks(marks: Marks, store: TaskStore, asana, today: date, report: IngestionReport,
-                already_added: set[str] | None = None) -> None:
+                already_added: set[str] | None = None, asana_tasks=None) -> None:
     """Turn pen marks into task-store and Asana changes. Nothing is destructive.
 
     `already_added` holds titles this sheet has contributed before — sync can run
@@ -110,6 +111,17 @@ def apply_marks(marks: Marks, store: TaskStore, asana, today: date, report: Inge
 
     for rid, prio in marks.priorities.items():
         store.set_priority(rid, prio)
+
+    by_gid = {t.gid: t for t in (asana_tasks or [])}
+    for gid, value in marks.set_priority.items():
+        task = by_gid.get(gid)
+        if task is None or task.priority.lower() == value.lower():
+            continue        # already there; nothing to write
+        try:
+            asana.set_priority(task, value)
+            report.priorities.append(f"{task.name} -> {value}")
+        except Exception as exc:  # noqa: BLE001
+            report.unreadable.append(f"priority for {task.name}: {exc}")
 
     for line in marks.new_tasks:
         parsed = parse_pen_line(line)
@@ -140,7 +152,7 @@ def write_notes(cfg: Config, marks_notes: str, day: date) -> None:
 
 
 def ingest_today(cfg: Config, rm: Rmapi, store: TaskStore, asana, today: date,
-                 report: IngestionReport) -> bool:
+                 report: IngestionReport, asana_tasks=None) -> bool:
     """Read marks off today's sheet before we regenerate over the top of it.
 
     Re-running on a day that already has a sheet is a refresh, not a new day:
@@ -170,7 +182,8 @@ def ingest_today(cfg: Config, rm: Rmapi, store: TaskStore, asana, today: date,
     state = json.loads(state_file.read_text(encoding="utf-8")) if state_file.exists() else {}
     already = {t.lower() for t in state.get("added", [])}
 
-    apply_marks(marks, store, asana, today, report, already_added=already)
+    apply_marks(marks, store, asana, today, report, already_added=already,
+                asana_tasks=asana_tasks)
     write_notes(cfg, marks.notes, today)
 
     state["added"] = sorted(already | {t.lower() for t in report.added})
@@ -348,7 +361,8 @@ def sync(cfg: Config, day: date) -> int:
         log(cfg, f"sync: read failed: {type(exc).__name__}: {exc}")
         return 1
 
-    apply_marks(marks, store, asana, day, report, already_added=already)
+    apply_marks(marks, store, asana, day, report, already_added=already,
+                asana_tasks=asana_tasks)
     write_notes(cfg, marks.notes, day)
     store.save()
 
@@ -371,13 +385,13 @@ def generate(cfg: Config, today: date) -> int:
         log(cfg, f"warn: asana unavailable — {asana_status.error}")
 
     # 1–3. yesterday
-    report = ingest_yesterday(cfg, rm, store, asana, today)
+    report = ingest_yesterday(cfg, rm, store, asana, today, asana_tasks=asana_tasks)
     if report.note:
         log(cfg, f"read-back: {report.note}")
 
     # Same day, second run: this is a refresh of today's sheet, so capture
     # anything ticked on it before the replacement goes up.
-    refreshing = ingest_today(cfg, rm, store, asana, today, report)
+    refreshing = ingest_today(cfg, rm, store, asana, today, report, asana_tasks=asana_tasks)
     if refreshing:
         log(cfg, "refreshing today's sheet — read its marks first")
 
