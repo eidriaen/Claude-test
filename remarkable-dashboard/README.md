@@ -138,6 +138,9 @@ Right-click the `.bat` → **Send to → Desktop (create shortcut)** for an icon
 
 Everything below is the same thing from a terminal.
 
+> Planning to run this on an always-on machine and drive it from a phone?
+> [NEXT.md](NEXT.md) has the design.
+
 ## Calendar via Power Automate
 
 Use this when Outlook's publish setting is capped at **"Can view when I'm busy"**.
