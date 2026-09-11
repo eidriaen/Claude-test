@@ -83,6 +83,16 @@ def test_page_needs_no_token(server):
         assert f'data-action="{action}"' in body
 
 
+def test_hello_diagnoses_without_leaking(server):
+    """A refused phone has to be able to tell why, without being let in."""
+    status, body = get(server + "/hello", token=None)
+    assert status == 200
+    hello = json.loads(body)
+    assert hello["token_source"] == "env"
+    assert TOKEN not in body
+    assert not any(TOKEN[:6] in str(v) for v in hello.values())
+
+
 def test_status_refuses_without_token(server):
     assert get(server + "/status", token=None)[0] == 401
     assert get(server + "/status", token="wrong")[0] == 401

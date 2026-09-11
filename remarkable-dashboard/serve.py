@@ -249,6 +249,8 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "DailySheet"
 
     token = ""
+    token_source = "env"          # env | generated
+    started = ""
     runner = Runner()
 
     # -- plumbing -------------------------------------------------------
@@ -292,6 +294,16 @@ class Handler(BaseHTTPRequestHandler):
                 "running": self.runner.current,
                 "host": socket.gethostname(),
                 "now": datetime.now().strftime("%H:%M"),
+            })
+        elif path == "/hello":
+            # Deliberately unauthenticated, and deliberately says nothing about
+            # the token's value. It exists so a phone that is being refused can
+            # tell "I have a stale token" from "the server is minting a new one
+            # every restart" -- from the phone, those looked identical.
+            self.send_json(HTTPStatus.OK, {
+                "token_source": self.token_source,
+                "started": self.started,
+                "host": socket.gethostname(),
             })
         elif path == "/manifest.webmanifest":
             self.send(HTTPStatus.OK, MANIFEST.encode(), "application/manifest+json")
@@ -423,7 +435,7 @@ header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
 #log div.good{color:var(--good)}#log div.bad{color:var(--bad)}#log div.busy{color:var(--busy)}
 #log div.muted{color:var(--muted)}
 #gate{display:none}
-input[type=password]{width:100%;padding:12px;font:inherit;border-radius:10px;
+#tokenbox{width:100%;padding:12px;font:inherit;border-radius:10px;
      border:1px solid var(--rule);background:var(--card);color:var(--ink)}
 .go{margin-top:10px;background:var(--ink);color:var(--bg);border:0;border-radius:10px;
     padding:12px 16px;font:inherit;font-weight:600}
@@ -442,10 +454,10 @@ footer button{background:none;border:0;color:var(--muted);font:inherit;
 
 <section id="gate" class="card">
   <div class="big">Enter the access token</div>
-  <div class="sub">WEB_TOKEN from the server's .env. Stored on this phone only.</div>
+  <div class="sub" id="gatehint">WEB_TOKEN from the server's .env. Stored on this phone only.</div>
   <form id="gateform" style="margin-top:10px">
-    <input type="password" id="tokenbox" autocomplete="current-password"
-           placeholder="token" enterkeyhint="go">
+    <input type="text" id="tokenbox" autocomplete="off" autocapitalize="off"
+           autocorrect="off" spellcheck="false" placeholder="token" enterkeyhint="go">
     <button class="go" type="submit">Unlock</button>
   </form>
 </section>
@@ -509,7 +521,18 @@ function showGate(why) {
   gate.style.display = 'block';
   app.hidden = true;
   if (why) setPill(why, 'bad');
+  // Show the rejected token rather than hiding it behind a saved value that
+  // cannot be seen or cleared -- being locked out with no control over what
+  // the page keeps sending is worse than showing your own token back to you.
+  if (token) { $('tokenbox').value = token; localStorage.removeItem(KEY); }
   $('tokenbox').focus();
+  fetch('/hello').then(r => r.json()).then(s => {
+    $('gatehint').textContent = s.token_source === 'generated'
+      ? 'This server started at ' + s.started + ' without a WEB_TOKEN in .env, so it '
+        + 'made one up — and it changes at every restart. Use the link it printed, '
+        + 'or set WEB_TOKEN in .env and restart it.'
+      : "WEB_TOKEN from the server's .env, on " + s.host + '. Stored on this phone only.';
+  }).catch(() => {});
 }
 
 $('gateform').addEventListener('submit', (e) => {
@@ -627,8 +650,11 @@ document.addEventListener('visibilitychange', () => {
 """.replace("__BUTTONS__", _buttons_html())
 
 
-def serve(host: str, port: int, token: str, quiet: bool = False) -> ThreadingHTTPServer:
+def serve(host: str, port: int, token: str, quiet: bool = False,
+          generated: bool = False) -> ThreadingHTTPServer:
     Handler.token = token
+    Handler.token_source = "generated" if generated else "env"
+    Handler.started = datetime.now().strftime("%H:%M")
     httpd = ThreadingHTTPServer((host, port), Handler)
     httpd.quiet = quiet                                    # type: ignore[attr-defined]
     httpd.daemon_threads = True
@@ -645,7 +671,7 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv)
 
     token, generated = load_token()
-    httpd = serve(args.host, args.port, token, args.quiet)
+    httpd = serve(args.host, args.port, token, args.quiet, generated)
 
     where = lan_address() if args.host in ("0.0.0.0", "") else args.host
     print(f"Daily Sheet server on http://{where}:{args.port}")
