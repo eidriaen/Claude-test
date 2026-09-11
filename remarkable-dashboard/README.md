@@ -206,6 +206,76 @@ whoever asks.
 
 > Design notes and what is deliberately left out: [NEXT.md](NEXT.md).
 
+## Setting up the machine that runs it
+
+For a mini PC that will live somewhere and be left alone. Install Windows, sign
+in, then open PowerShell and paste one line:
+
+```powershell
+irm https://raw.githubusercontent.com/eidriaen/Claude-test/ReMarkable-dashboard/remarkable-dashboard/setup.ps1 -OutFile "$env:TEMP\setup.ps1"; & "$env:TEMP\setup.ps1"
+```
+
+It asks Windows for administrator rights itself. Roughly ten minutes later the
+machine has:
+
+| | |
+|---|---|
+| **Python 3.12 + the packages** | reportlab, Pillow, numpy, pypdfium2 |
+| **Git + the project** | cloned to `C:\Claude-test`, on this branch |
+| **rmapi** | the right build for the architecture, in `C:\tools` |
+| **Tailscale** | installed, waiting for `tailscale up` |
+| **Scheduled tasks** | sheet at 08:00, ticks read every 15 min, phone server at logon |
+| **SSH and Remote Desktop** | on, so it never needs a keyboard again |
+| **`.env`** | created from the template with a fixed `WEB_TOKEN` |
+| **Power** | never sleeps on mains |
+
+Options: `-Root D:\somewhere`, `-At 07:30`, `-SyncEvery 10`, `-Port 9000`,
+`-NoTailscale`, `-NoRdp`, `-NoSsh`, `-NoTasks`, and `-WithClaudeCode` (Node
+plus Claude Code, if you want to work on the project over SSH).
+
+Re-running it is safe: it pulls the latest code, leaves an existing `.env`
+alone, and re-registers the tasks. A step that fails is listed at the end
+rather than stopping the ones after it.
+
+### The part no script can do
+
+Four things need a human once, and the script prints them as a checklist:
+
+1. **Paste your secrets into `.env`** — `ASANA_PAT`, `CALENDAR_JSON`,
+   `ANTHROPIC_API_KEY`. Fine over SSH.
+2. **Pair rmapi** — `C:\tools\rmapi.exe`, then a code from
+   [my.remarkable.com](https://my.remarkable.com/device/desktop/connect). Fine
+   over SSH. Check the page shows the right account before copying the code.
+3. **Sign into OneDrive** — needs a screen, so use Remote Desktop or plug a
+   monitor in once. Without it the calendar file never arrives.
+4. **Turn on automatic logon** — scheduled tasks and OneDrive both need a
+   logged-on session, and a headless machine has none after a power cut. Use
+   [Sysinternals Autologon](https://learn.microsoft.com/sysinternals/downloads/autologon),
+   which keeps the password in LSA rather than in the registry in clear text.
+
+Then check the whole thing from anywhere:
+
+```powershell
+ssh you@minipc
+cd C:\Claude-test\remarkable-dashboard
+py -m daily_sheet doctor
+```
+
+### Getting to it from outside
+
+Use **Tailscale**. `tailscale up` on the mini PC and the app on your phone, and
+both the page and SSH work from anywhere, over an encrypted link, with nothing
+exposed.
+
+**Don't port-forward this to the internet.** Two reasons, and the second is the
+one that matters: the machine holds your Asana token, your reMarkable
+credentials and an SSH server; and `serve.py` speaks plain HTTP, so a forwarded
+port sends your access token across the internet in clear text on every tap.
+Anyone on the path can read it and then push to your tablet and write to your
+Asana. Making that safe means a real hostname, a certificate and a reverse
+proxy in front — a different project, and Tailscale removes the need for all of
+it.
+
 ## Calendar via Power Automate
 
 Use this when Outlook's publish setting is capped at **"Can view when I'm busy"**.
