@@ -16,7 +16,7 @@ spellings for each of subject, start, end and location.
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from .config import TZ, Config
@@ -25,8 +25,12 @@ from .models import Event, SectionStatus
 # Field name candidates, most likely first. The Office 365 connector emits the
 # first of each; the others show up when a flow reshapes the output by hand.
 _SUBJECT = ("subject", "title", "name", "summary")
-_START = ("start", "startTime", "startWithTimeZone", "dateTimeStart", "starts")
-_END = ("end", "endTime", "endWithTimeZone", "dateTimeEnd", "ends")
+# Offset-carrying fields first. The Office 365 connector returns *both* a naive
+# `start` and a `startWithTimeZone`, and the naive one is UTC -- reading it as
+# Oslo local puts every meeting two hours early in summer, which still looks
+# like a plausible schedule and so would not be obvious on the sheet.
+_START = ("startWithTimeZone", "start", "startTime", "dateTimeStart", "starts")
+_END = ("endWithTimeZone", "end", "endTime", "dateTimeEnd", "ends")
 _LOCATION = ("location", "locationDisplayName", "where", "room")
 _ALLDAY = ("isAllDay", "allDay", "is_all_day")
 
@@ -51,13 +55,13 @@ def _text(value: object) -> str:
     return str(value or "").strip()
 
 
-def parse_dt(value: object) -> datetime | None:
+def parse_dt(value: object, assume: str = "") -> datetime | None:
     """Parse one timestamp into Europe/Oslo.
 
-    A value carrying an offset is authoritative and merely converted. A naive
-    one is assumed to already be Oslo local, which is what the connector returns
-    when the flow sets its time zone -- guessing UTC there would shift every
-    event by an hour or two depending on the season.
+    A value carrying an offset is authoritative and merely converted. For a
+    naive one, `assume` carries the row's own `timeZone` field when it has one,
+    so "UTC" is honoured rather than guessed at; without that we fall back to
+    Oslo local, which is what a flow that sets its own time zone returns.
     """
     if isinstance(value, dict):
         value = value.get("dateTime") or value.get("DateTime") or ""
@@ -85,7 +89,23 @@ def parse_dt(value: object) -> datetime | None:
         else:
             return None
 
-    return dt.replace(tzinfo=TZ) if dt.tzinfo is None else dt.astimezone(TZ)
+    if dt.tzinfo is not None:
+        return dt.astimezone(TZ)
+    if assume.strip().upper() in ("UTC", "GMT", "Z"):
+        return dt.replace(tzinfo=timezone.utc).astimezone(TZ)
+    return dt.replace(tzinfo=TZ)
+
+
+def _date_only(value: object) -> datetime | None:
+    """Midnight Oslo on the date in `value`, ignoring any time or offset."""
+    if isinstance(value, dict):
+        value = value.get("dateTime") or value.get("DateTime") or ""
+    text = str(value or "").strip()[:10]
+    try:
+        d = date.fromisoformat(text)
+    except ValueError:
+        return None
+    return datetime(d.year, d.month, d.day, tzinfo=TZ)
 
 
 def _rows(data: object) -> list[dict]:
@@ -107,11 +127,21 @@ def parse_calendar_json(text: str) -> list[Event]:
     rows = _rows(json.loads(text))
     events: list[Event] = []
     for row in rows:
-        start = parse_dt(_first(row, _START))
-        end = parse_dt(_first(row, _END))
+        tz_hint = _text(row.get("timeZone") or row.get("timezone") or "")
+        all_day = bool(_first(row, _ALLDAY))
+
+        if all_day:
+            # An all-day event is a date, not an instant. Converting its
+            # midnight-UTC stamp lands it at 02:00 Oslo in summer and drags the
+            # day-long bar off the day it belongs to.
+            start = _date_only(_first(row, _START))
+            end = _date_only(_first(row, _END))
+        else:
+            start = parse_dt(_first(row, _START), tz_hint)
+            end = parse_dt(_first(row, _END), tz_hint)
+
         if start is None:
             continue
-        all_day = bool(_first(row, _ALLDAY))
         if end is None:
             end = start + timedelta(days=1 if all_day else 1 / 24)
         events.append(Event(
