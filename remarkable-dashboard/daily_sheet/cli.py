@@ -172,8 +172,8 @@ def generate(cfg: Config, today: date) -> int:
             log(cfg, f"       sheet rendered at {pdf} but not pushed")
             return 1
         try:
-            rm.upload(pdf, cfg.remarkable_folder)
-            log(cfg, f"pushed to {cfg.remarkable_folder}")
+            how = rm.upload(pdf, cfg.remarkable_folder)
+            log(cfg, f"pushed to {cfg.remarkable_folder} — {how}")
         except RmapiError as exc:
             log(cfg, f"ERROR: push failed: {exc}")
             return 1

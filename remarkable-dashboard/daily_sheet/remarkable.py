@@ -91,9 +91,40 @@ class Rmapi:
         return f"{folder}/{name}" if name in self.ls(folder) else None
 
     # -- documents ------------------------------------------------------
-    def upload(self, pdf: Path, folder: str) -> None:
+    def upload(self, pdf: Path, folder: str) -> str:
+        """Upload, replacing any same-named document already on the tablet.
+
+        Re-running on a day that already has a sheet (a manual run, or the
+        scheduler retrying) otherwise dies on 'entry already exists'. We move
+        the old document to Archive rather than overwriting it, because it may
+        already carry pen marks that have not been read back yet — losing those
+        silently is the one outcome worth some trouble to avoid. Only if the
+        move fails do we force, and the caller gets told which happened.
+        """
         self.ensure_folder(folder)
-        self._run("put", str(pdf), folder)
+        try:
+            self._run("put", str(pdf), folder)
+            return "uploaded"
+        except RmapiError as exc:
+            if "already exists" not in str(exc).lower():
+                raise
+
+        existing = f"{folder}/{pdf.stem}"
+        archived = False
+        try:
+            self.move(existing, self.cfg.archive_folder)
+            archived = True
+        except RmapiError:
+            pass        # name already taken in Archive, or mv unsupported
+
+        try:
+            self._run("put", str(pdf), folder)
+            return "replaced (previous sheet archived)" if archived else "replaced"
+        except RmapiError as exc:
+            if "already exists" not in str(exc).lower():
+                raise
+            self._run("put", "--force", str(pdf), folder)
+            return "overwritten (could not archive the previous sheet)"
 
     def move(self, src: str, dst_folder: str) -> None:
         self.ensure_folder(dst_folder)
