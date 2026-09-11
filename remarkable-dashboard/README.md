@@ -208,15 +208,33 @@ whoever asks.
 
 ## Setting up the machine that runs it
 
-For a mini PC that will live somewhere and be left alone. Install Windows, sign
-in, then open PowerShell and paste one line:
+### What to buy
+
+| | |
+|---|---|
+| **Windows 11 Pro** | not Home — Home cannot *host* Remote Desktop, and that is how you sign into OneDrive on a machine with no monitor |
+| **16 GB RAM, NVMe SSD** | the job is seconds of Python every quarter of an hour; what makes a cheap mini PC feel slow is 8 GB and eMMC storage, not Windows |
+| **Wired ethernet** | one less thing to reconnect after a power cut |
+
+There is no terminal-only Windows that works here. Server Core and the IoT
+builds drop the desktop shell, and OneDrive's sync client needs it — and
+OneDrive is the only reason this wants Windows at all. Going properly headless
+means rebuilding the calendar path, which is the thing the mini PC exists to
+avoid.
+
+### Installing
+
+Install Windows, sign in, then **download one file and double-click it**:
+[`Setup.bat`](Setup.bat). It fetches the rest itself, and asks Windows for
+administrator rights on its own — no need to right-click.
+
+Or, if you prefer a line in PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/eidriaen/Claude-test/ReMarkable-dashboard/remarkable-dashboard/setup.ps1 -OutFile "$env:TEMP\setup.ps1"; & "$env:TEMP\setup.ps1"
+irm https://raw.githubusercontent.com/eidriaen/Claude-test/ReMarkable-dashboard/remarkable-dashboard/setup.ps1 -OutFile "$env:PUBLIC\setup.ps1"; & "$env:PUBLIC\setup.ps1"
 ```
 
-It asks Windows for administrator rights itself. Roughly ten minutes later the
-machine has:
+Roughly ten minutes later the machine has:
 
 | | |
 |---|---|
@@ -226,12 +244,13 @@ machine has:
 | **Tailscale** | installed, waiting for `tailscale up` |
 | **Scheduled tasks** | sheet at 08:00, ticks read every 15 min, phone server at logon |
 | **SSH and Remote Desktop** | on, so it never needs a keyboard again |
+| **Claude Code** | with Node, so changes get made *on* the machine over SSH |
 | **`.env`** | created from the template with a fixed `WEB_TOKEN` |
 | **Power** | never sleeps on mains |
 
 Options: `-Root D:\somewhere`, `-At 07:30`, `-SyncEvery 10`, `-Port 9000`,
-`-NoTailscale`, `-NoRdp`, `-NoSsh`, `-NoTasks`, and `-WithClaudeCode` (Node
-plus Claude Code, if you want to work on the project over SSH).
+`-NoTailscale`, `-NoRdp`, `-NoSsh`, `-NoTasks`, `-NoClaudeCode`. Pass them
+straight to the `.bat` — `Setup.bat -At 07:30` works.
 
 Re-running it is safe: it pulls the latest code, leaves an existing `.env`
 alone, and re-registers the tasks. A step that fails is listed at the end
@@ -253,13 +272,33 @@ Four things need a human once, and the script prints them as a checklist:
    [Sysinternals Autologon](https://learn.microsoft.com/sysinternals/downloads/autologon),
    which keeps the password in LSA rather than in the registry in clear text.
 
-Then check the whole thing from anywhere:
+### Getting onto it
+
+From the laptop, double-click **`Connect to Mini PC.bat`**. It asks for the
+address once, remembers it, and drops you into a PowerShell prompt on the mini
+PC. Windows has had an SSH client built in since Windows 10 1809, so there is
+usually nothing to install — and if the feature is off, the script turns it on.
 
 ```powershell
-ssh you@minipc
-cd C:\Claude-test\remarkable-dashboard
-py -m daily_sheet doctor
+.\connect.ps1                                  # the saved machine
+.\connect.ps1 -Target minipc -User adrian      # a different one
+.\connect.ps1 -Command "py -m daily_sheet doctor"   # one command, then out
+.\connect.ps1 -Forget                          # ask me again next time
 ```
+
+The address lives in `%LOCALAPPDATA%\DailySheet\minipc.txt`, not in the repo.
+No password is ever stored — SSH asks, or uses your key.
+
+Once you are on:
+
+```powershell
+cd C:\Claude-test\remarkable-dashboard
+py -m daily_sheet doctor      # is everything connected?
+claude                        # change something, with the files right there
+```
+
+From a phone, any SSH app does the same — [Termius](https://termius.com) and
+Blink are the usual ones on iOS.
 
 ### Getting to it from outside
 

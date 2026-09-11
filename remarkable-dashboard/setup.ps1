@@ -20,7 +20,7 @@
     .\setup.ps1
     .\setup.ps1 -Root D:\DailySheet -Port 9000
     .\setup.ps1 -NoRdp -NoTailscale
-    .\setup.ps1 -WithClaudeCode        # so you can work on it over SSH
+    .\setup.ps1 -NoClaudeCode          # skip Node and Claude Code
 #>
 param(
     [string]$Root = 'C:\Claude-test',
@@ -33,7 +33,7 @@ param(
     [switch]$NoSsh,
     [switch]$NoRdp,
     [switch]$NoTasks,
-    [switch]$WithClaudeCode
+    [switch]$NoClaudeCode
 )
 
 $ErrorActionPreference = 'Stop'
@@ -274,13 +274,21 @@ try {
 }
 
 # ---------------------------------------------------------------- claude code
-if ($WithClaudeCode) {
-    Step 'Claude Code (optional, for working on this over SSH)'
+if (-not $NoClaudeCode) {
+    # The CLI, not the desktop app: this machine has no screen and you will be
+    # arriving over SSH. `claude` in the project folder is the whole point --
+    # changes get made on the machine rather than pasted at it.
+    Step 'Claude Code'
     if (Install-App 'OpenJS.NodeJS.LTS' 'node' 'Node.js LTS') {
         try {
-            npm install -g @anthropic-ai/claude-code
-            Good 'installed -- run "claude" in the project folder'
-            Todo 'Run "claude" once over SSH to sign in.'
+            cmd /c "npm install -g @anthropic-ai/claude-code" | Out-Null
+            Update-Path
+            if (Have 'claude') {
+                Good 'installed -- ssh in, cd to the project, type: claude'
+                Todo 'Run "claude" once over SSH and sign in.'
+            } else {
+                Problem 'npm finished but claude is not on PATH -- open a new shell and check'
+            }
         } catch {
             Problem "npm install failed: $($_.Exception.Message)"
         }
