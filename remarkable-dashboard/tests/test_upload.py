@@ -102,3 +102,21 @@ def test_unrelated_put_failure_is_not_swallowed(rm, tmp_path):
     with pytest.raises(RmapiError, match="connection refused"):
         rm.upload(pdf, "Daily")
     assert len(_puts(rm)) == 1, "a network error must not trigger a force retry"
+
+
+def test_refresh_overwrites_in_place_once_marks_are_read(rm, tmp_path):
+    """A second run on the same day is a refresh of one document, not a new one.
+
+    Archiving on every refresh would leave Archive holding a copy per run; the
+    caller has already read the marks, so the old copy holds nothing needed.
+    """
+    _stub(rm)
+    pdf = tmp_path / "Daily Sheet — 2026-09-11.pdf"
+    pdf.write_bytes(b"%PDF")
+
+    result = rm.upload(pdf, "Daily", marks_already_read=True)
+
+    assert result == "replaced today's sheet"
+    assert not [c for c in rm.calls if c[0] == "mv"], "a refresh must not archive"
+    assert any("--force" in c for c in _puts(rm))
+    assert _puts(rm)[0][-2] == pdf.name

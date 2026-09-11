@@ -98,17 +98,24 @@ class Rmapi:
         return f"{folder}/{name}" if name in self.ls(folder) else None
 
     # -- documents ------------------------------------------------------
-    def upload(self, pdf: Path, folder: str) -> str:
+    def upload(self, pdf: Path, folder: str, marks_already_read: bool = False) -> str:
         """Upload, replacing any same-named document already on the tablet.
 
-        Re-running on a day that already has a sheet (a manual run, or the
-        scheduler retrying) otherwise dies on 'entry already exists'. We move
-        the old document to Archive rather than overwriting it, because it may
-        already carry pen marks that have not been read back yet — losing those
-        silently is the one outcome worth some trouble to avoid. Only if the
-        move fails do we force, and the caller gets told which happened.
+        One document per day: re-running on a day that already has a sheet is a
+        refresh of that sheet, not a second one. When the caller has already
+        read the marks off it (`marks_already_read`), the old copy holds nothing
+        we still need and is overwritten in place, which keeps Archive to one
+        sheet per past day instead of one per run.
+
+        Without that guarantee we fall back to moving the old document to
+        Archive first, because it may carry pen marks nobody has read yet, and
+        silently discarding those is the one outcome worth real trouble to
+        avoid. Only if the move fails do we force.
         """
         self.ensure_folder(folder)
+        if marks_already_read:
+            self._put(pdf, folder, force=True)
+            return "replaced today's sheet"
         try:
             self._put(pdf, folder)
             return "uploaded"

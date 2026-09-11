@@ -124,8 +124,8 @@ Double-click **`Daily Sheet.bat`** (or `dashboard.pyw` directly). Four buttons:
 
 | Button | What it does |
 |---|---|
-| **Sync now** | Reads your pen ticks off today's sheet and completes them in Asana |
-| **New sheet** | Fetches calendar + Asana and pushes a fresh sheet to the tablet |
+| **Sync Daily** | Reads your pen ticks off today's sheet and completes them in Asana |
+| **Generate Daily** | Refreshes today's sheet from Asana + calendar. One sheet per day — running it again replaces today's rather than adding another |
 | **What's on the tablet** | Lists `Daily/` and `Archive/`, flagging which sheet sync will read |
 | **Check connections** | Tests rmapi, the calendar feed, Asana, and the API key |
 

@@ -130,6 +130,45 @@ def write_notes(cfg: Config, marks_notes: str, day: date) -> None:
     (cfg.notes_dir / f"{day.isoformat()}.md").write_text(marks_notes.rstrip() + "\n", encoding="utf-8")
 
 
+def ingest_today(cfg: Config, rm: Rmapi, store: TaskStore, asana, today: date,
+                 report: IngestionReport) -> bool:
+    """Read marks off today's sheet before we regenerate over the top of it.
+
+    Re-running on a day that already has a sheet is a refresh, not a new day:
+    the same document gets replaced in place. Anything already ticked on it has
+    to be captured first, or regenerating would quietly discard it.
+
+    Returns True if a sheet was found and read, which tells the caller it is
+    safe to overwrite rather than archive.
+    """
+    layout = cfg.out_dir / f"layout-{today.isoformat()}.json"
+    if cfg.use_fixtures or not layout.exists() or not rm.available():
+        return False
+    doc = rm.find(cfg.remarkable_folder, sheet_name(today))
+    if not doc:
+        return False
+
+    try:
+        annotated = rm.download_annotated(doc, cfg.out_dir / "annotated")
+        set_strip_dir(cfg.out_dir / "strips")
+        marks = read_marks(annotated, layout, cfg.anthropic_api_key)
+    except Exception as exc:  # noqa: BLE001 — never block the refresh
+        log(cfg, f"warn: could not read today's sheet before replacing it: "
+                 f"{type(exc).__name__}: {exc}")
+        return False
+
+    state_file = cfg.out_dir / f"synced-{today.isoformat()}.json"
+    state = json.loads(state_file.read_text(encoding="utf-8")) if state_file.exists() else {}
+    already = {t.lower() for t in state.get("added", [])}
+
+    apply_marks(marks, store, asana, today, report, already_added=already)
+    write_notes(cfg, marks.notes, today)
+
+    state["added"] = sorted(already | {t.lower() for t in report.added})
+    state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
+    return True
+
+
 # --- tablet: what is actually up there --------------------------------------
 def tablet(cfg: Config) -> int:
     """List the sheets on the tablet, flagging which one sync will read.
@@ -245,6 +284,12 @@ def generate(cfg: Config, today: date) -> int:
     if report.note:
         log(cfg, f"read-back: {report.note}")
 
+    # Same day, second run: this is a refresh of today's sheet, so capture
+    # anything ticked on it before the replacement goes up.
+    refreshing = ingest_today(cfg, rm, store, asana, today, report)
+    if refreshing:
+        log(cfg, "refreshing today's sheet — read its marks first")
+
     monday = today - timedelta(days=today.weekday())
     events, events_status = load_events(cfg, monday - timedelta(days=7), monday + timedelta(days=14))
     if not events_status.ok:
@@ -283,7 +328,7 @@ def generate(cfg: Config, today: date) -> int:
             log(cfg, f"       sheet rendered at {pdf} but not pushed")
             return 1
         try:
-            how = rm.upload(pdf, cfg.remarkable_folder)
+            how = rm.upload(pdf, cfg.remarkable_folder, marks_already_read=refreshing)
             log(cfg, f"pushed to {cfg.remarkable_folder} — {how}")
         except RmapiError as exc:
             log(cfg, f"ERROR: push failed: {exc}")
