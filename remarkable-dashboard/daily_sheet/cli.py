@@ -222,10 +222,16 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("pdf", type=Path)
     c.add_argument("layout", type=Path)
 
+    sub.add_parser("doctor", help="check every connection and report what's broken")
+
     args = p.parse_args(argv)
 
     if args.cmd == "calibrate":
         return calibrate(args.pdf, args.layout)
+
+    if args.cmd == "doctor":
+        from .doctor import doctor
+        return doctor(load_config())
 
     cfg = load_config(use_fixtures=args.fixtures, dry_run=args.dry_run)
     today = date.fromisoformat(args.date) if args.date else date.today()
