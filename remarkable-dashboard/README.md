@@ -61,11 +61,33 @@ model — they are pure pixel counting.
 
 ### 4. reMarkable — rmapi
 
+**macOS / Linux**
+
 ```bash
-# macOS / Linux
 brew install rmapi          # or: go install github.com/ddvk/rmapi@latest
 rmapi                       # pairs with a one-time code from my.remarkable.com
 ```
+
+**Windows**
+
+Grab the Windows build from the [rmapi releases page](https://github.com/ddvk/rmapi/releases),
+unzip `rmapi.exe` somewhere stable (e.g. `C:\tools\rmapi.exe`), then point `.env`
+at it — it doesn't need to be on PATH:
+
+```ini
+RMAPI_BIN=C:\tools\rmapi.exe
+```
+
+Pair it once by running it with no arguments:
+
+```powershell
+C:\tools\rmapi.exe
+```
+
+It asks for a one-time code from **https://my.remarkable.com/device/desktop/connect**.
+The token it writes is per-user, so pair it as the same Windows user the
+scheduled task runs as — otherwise the task authenticates as nobody and the
+push fails.
 
 Then verify it can do all four things this depends on, because rmapi has broken
 across firmware updates before (SCOPE §6.2):
@@ -84,13 +106,8 @@ sheet — you just lose the pen loop until it's fixed.
 ## Daily use
 
 ```bash
-python -m daily_sheet generate
-```
-
-Run it from cron at 07:00 Oslo:
-
-```cron
-0 7 * * * cd /path/to/remarkable-dashboard && /usr/bin/python3 -m daily_sheet generate >> runs.log 2>&1
+python -m daily_sheet generate          # macOS / Linux
+py -m daily_sheet generate              # Windows
 ```
 
 Useful flags:
@@ -100,6 +117,36 @@ Useful flags:
 | `--fixtures` | sample calendar/Asana data, no network |
 | `--dry-run` | render but don't push to the tablet |
 | `--date 2026-09-11` | render for a specific day |
+
+## Scheduling it
+
+### Windows
+
+```powershell
+.\install-task.ps1              # daily at 08:00
+.\install-task.ps1 -At 07:30    # re-run to change the time
+.\install-task.ps1 -Remove
+```
+
+That registers a task called **reMarkable Daily Sheet** which calls `run.ps1`.
+It runs only while you're logged on, so there's no stored password. If the
+machine is asleep or off at the scheduled time the run isn't lost —
+`StartWhenAvailable` fires it as soon as the machine is back, so a sheet still
+lands before you pick the tablet up.
+
+```powershell
+Start-ScheduledTask -TaskName 'reMarkable Daily Sheet'   # run it now
+Get-Content runs.log -Tail 20                            # what happened
+```
+
+A failed push exits non-zero, so a broken run shows up as **Last Run Result**
+`0x1` in Task Scheduler rather than silently doing nothing.
+
+### macOS / Linux
+
+```cron
+0 8 * * * cd /path/to/remarkable-dashboard && /usr/bin/python3 -m daily_sheet generate >> runs.log 2>&1
+```
 
 ## The sheet
 

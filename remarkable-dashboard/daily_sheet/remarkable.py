@@ -39,14 +39,30 @@ class Rmapi:
             raise RmapiError(f"rmapi {' '.join(args)} failed: {err[-1] if err else p.returncode}")
         return p
 
-    def available(self) -> bool:
-        """True if the binary exists and is paired with the cloud."""
-        if not shutil.which(self.cfg.rmapi_bin):
-            return False
+    def found(self) -> bool:
+        """True if the binary exists. On Windows RMAPI_BIN is usually a full
+        path to a loose rmapi.exe rather than something on PATH, so accept both."""
+        bin_ = self.cfg.rmapi_bin
+        if shutil.which(bin_):
+            return True
+        p = Path(bin_)
+        return p.is_file() or p.with_suffix(".exe").is_file()
+
+    def status(self) -> tuple[bool, str]:
+        """(usable, reason). Separates 'not installed' from 'not paired' so the
+        log tells you which of the two to go and fix."""
+        if not self.found():
+            return False, (f"{self.cfg.rmapi_bin} not found — install rmapi and set "
+                           f"RMAPI_BIN in .env to its full path")
         try:
-            return self._run("ls", check=False).returncode == 0
-        except RmapiError:
-            return False
+            if self._run("ls", check=False).returncode != 0:
+                return False, "rmapi is installed but not paired — run it once to enter a code from my.remarkable.com"
+        except RmapiError as exc:
+            return False, str(exc)
+        return True, ""
+
+    def available(self) -> bool:
+        return self.status()[0]
 
     # -- folders --------------------------------------------------------
     def ensure_folder(self, path: str) -> None:

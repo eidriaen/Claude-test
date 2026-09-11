@@ -165,12 +165,15 @@ def generate(cfg: Config, today: date) -> int:
     # 6. push
     if cfg.dry_run:
         log(cfg, f"dry-run: not pushing. PDF at {pdf}")
-    elif not rm.available():
-        log(cfg, f"ERROR: rmapi unavailable — sheet rendered at {pdf} but not pushed")
-        return 1
     else:
+        ok, reason = rm.status()
+        if not ok:
+            log(cfg, f"ERROR: {reason}")
+            log(cfg, f"       sheet rendered at {pdf} but not pushed")
+            return 1
         try:
             rm.upload(pdf, cfg.remarkable_folder)
+            log(cfg, f"pushed to {cfg.remarkable_folder}")
         except RmapiError as exc:
             log(cfg, f"ERROR: push failed: {exc}")
             return 1
