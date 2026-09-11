@@ -67,6 +67,7 @@ class AsanaTask:
     priority: str = ""                       # "High" | "Medium" | "Low" | ""
     priority_field: str = ""                 # custom field gid
     priority_options: dict = field(default_factory=dict)   # name -> option gid
+    project_gids: list = field(default_factory=list)       # to exclude board cards
 
     def rank(self) -> int:
         """0 High, 1 Medium, 2 Low, 3 unset — for sorting."""

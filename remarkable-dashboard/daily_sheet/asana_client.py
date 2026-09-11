@@ -52,6 +52,21 @@ class AsanaClient:
         self._session.headers["Accept"] = "application/json"
 
     # -- read -------------------------------------------------------------
+    def board_gid(self) -> str:
+        """The pipeline board's gid, resolved once and cached.
+
+        Empty when the board cannot be found -- callers treat that as "do not
+        filter" rather than failing, since showing a task twice is a smaller
+        problem than hiding one.
+        """
+        if not hasattr(self, "_board_gid"):
+            try:
+                found = self.find_project(self.cfg.asana_board)
+            except Exception:  # noqa: BLE001
+                found = None
+            self._board_gid = found[0] if found else ""
+        return self._board_gid
+
     def my_open_tasks(self) -> list[AsanaTask]:
         if self.cfg.use_fixtures:
             return self._fixture_tasks()
@@ -62,6 +77,14 @@ class AsanaClient:
         tasks: list[AsanaTask] = []
         for ws in me.get("workspaces", []):
             tasks.extend(self._tasks_in_workspace(ws["gid"]))
+
+        # Pipeline cards are assigned to whoever owns the client, so they come
+        # back as tasks too -- and the Projects page already shows them, with
+        # the budget and stage that make them make sense. Listing them again
+        # under Tasks is noise.
+        board = self.board_gid()
+        if board:
+            tasks = [t for t in tasks if board not in t.project_gids]
         return sort_asana(tasks)
 
     def _tasks_in_workspace(self, workspace_gid: str) -> list[AsanaTask]:
@@ -71,7 +94,8 @@ class AsanaClient:
             "workspace": workspace_gid,
             "completed_since": "now",          # incomplete only
             "limit": 100,
-            "opt_fields": ("name,due_on,due_at,completed,projects.name,permalink_url,"
+            "opt_fields": ("name,due_on,due_at,completed,projects.name,projects.gid,"
+                           "permalink_url,"
                            "custom_fields.gid,custom_fields.name,"
                            "custom_fields.enum_value.name,"
                            "custom_fields.enum_options.gid,custom_fields.enum_options.name"),
@@ -93,6 +117,7 @@ class AsanaClient:
                     due=date.fromisoformat(due) if due else None,
                     permalink=t.get("permalink_url", ""),
                     priority=prio, priority_field=field_gid, priority_options=options,
+                    project_gids=[p["gid"] for p in t.get("projects", []) if p.get("gid")],
                 ))
             nxt = (body.get("next_page") or {}).get("uri")
             url, params = (nxt, None) if nxt else (None, None)

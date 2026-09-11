@@ -250,7 +250,7 @@ A failed push exits non-zero, so a broken run shows up as **Last Run Result**
 |---|---|
 | 1 | **Today** — hour grid 07–20, top-3 priorities, yesterday's ingestion report |
 | 2–4 | **Week** — last / this / next, with ‹ Prev and Next › tap zones |
-| 5 | **Tasks** — Asana tasks assigned to you, overdue first, plus the New tasks box |
+| 5 | **Tasks** — Asana tasks assigned to you, High priority first, with H/M/L pickers and the New tasks box. Cards on the pipeline board are excluded — they appear on Projects |
 | 6 | **Projects** — the pipeline board by section, with Active / Signed / Incoming totals |
 | 7 | **Notes** — blank ruled page |
 
