@@ -1,0 +1,42 @@
+[
+  {
+    "id": "t-8k2f",
+    "title": "Ringe tannlegen og flytte time",
+    "priority": 1,
+    "status": "open",
+    "source": "manual",
+    "created": "2026-09-04",
+    "completed": null,
+    "notes": ""
+  },
+  {
+    "id": "t-p3qa",
+    "title": "Levere bilen til service",
+    "priority": 2,
+    "status": "open",
+    "source": "manual",
+    "created": "2026-09-09",
+    "completed": null,
+    "notes": "Torsdag eller fredag"
+  },
+  {
+    "id": "t-m7cd",
+    "title": "Kjøpe gave til Marthe",
+    "priority": 3,
+    "status": "open",
+    "source": "manual",
+    "created": "2026-09-10",
+    "completed": null,
+    "notes": ""
+  },
+  {
+    "id": "t-zz01",
+    "title": "Betale strømregning",
+    "priority": 2,
+    "status": "done",
+    "source": "pen",
+    "created": "2026-09-02",
+    "completed": "2026-09-08",
+    "notes": ""
+  }
+]

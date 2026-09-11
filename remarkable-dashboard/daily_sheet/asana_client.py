@@ -1,0 +1,99 @@
+"""Asana: read tasks assigned to me, and mark ticked ones complete. Nothing else."""
+from __future__ import annotations
+
+import json
+from datetime import date, timedelta
+
+import requests
+
+from .config import Config
+from .models import AsanaTask, SectionStatus
+
+API = "https://app.asana.com/api/1.0"
+
+
+class AsanaClient:
+    def __init__(self, cfg: Config, today: date):
+        self.cfg = cfg
+        self.today = today
+        self._session = requests.Session()
+        self._session.headers["Authorization"] = f"Bearer {cfg.asana_pat}"
+        self._session.headers["Accept"] = "application/json"
+
+    # -- read -------------------------------------------------------------
+    def my_open_tasks(self) -> list[AsanaTask]:
+        if self.cfg.use_fixtures:
+            return self._fixture_tasks()
+        if not self.cfg.asana_pat:
+            raise RuntimeError("ASANA_PAT is not set")
+
+        me = self._get("/users/me", opt_fields="workspaces.name")
+        tasks: list[AsanaTask] = []
+        for ws in me.get("workspaces", []):
+            tasks.extend(self._tasks_in_workspace(ws["gid"]))
+        return sort_asana(tasks)
+
+    def _tasks_in_workspace(self, workspace_gid: str) -> list[AsanaTask]:
+        out: list[AsanaTask] = []
+        params = {
+            "assignee": "me",
+            "workspace": workspace_gid,
+            "completed_since": "now",          # incomplete only
+            "limit": 100,
+            "opt_fields": "name,due_on,due_at,completed,projects.name,permalink_url",
+        }
+        url = f"{API}/tasks"
+        while url:
+            r = self._session.get(url, params=params, timeout=20)
+            r.raise_for_status()
+            body = r.json()
+            for t in body.get("data", []):
+                if t.get("completed"):
+                    continue
+                due = t.get("due_on") or (t.get("due_at") or "")[:10] or None
+                out.append(AsanaTask(
+                    gid=t["gid"],
+                    name=(t.get("name") or "").strip() or "(untitled)",
+                    project=", ".join(p.get("name", "") for p in t.get("projects", []) if p.get("name")),
+                    due=date.fromisoformat(due) if due else None,
+                    permalink=t.get("permalink_url", ""),
+                ))
+            nxt = (body.get("next_page") or {}).get("uri")
+            url, params = (nxt, None) if nxt else (None, None)
+        return out
+
+    def _get(self, path: str, **params) -> dict:
+        r = self._session.get(f"{API}{path}", params=params, timeout=20)
+        r.raise_for_status()
+        return r.json()["data"]
+
+    # -- write ------------------------------------------------------------
+    def complete(self, gid: str) -> None:
+        """The only write we ever do."""
+        if self.cfg.use_fixtures or self.cfg.dry_run:
+            return
+        r = self._session.put(f"{API}/tasks/{gid}", json={"data": {"completed": True}}, timeout=20)
+        r.raise_for_status()
+
+    # -- fixtures ---------------------------------------------------------
+    def _fixture_tasks(self) -> list[AsanaTask]:
+        raw = json.loads((self.cfg.fixtures_dir / "asana_tasks.json").read_text(encoding="utf-8"))
+        out = []
+        for t in raw:
+            # fixture due_on is an offset in days from today so the sample stays relevant
+            due = self.today + timedelta(days=int(t["due_on"])) if t.get("due_on") is not None else None
+            out.append(AsanaTask(gid=t["gid"], name=t["name"], project=t.get("project", ""), due=due))
+        return sort_asana(out)
+
+
+def sort_asana(tasks: list[AsanaTask]) -> list[AsanaTask]:
+    """Due date ascending, overdue first; undated last."""
+    return sorted(tasks, key=lambda t: (t.due is None, t.due or date.max, t.name.lower()))
+
+
+def load_asana(cfg: Config, today: date) -> tuple[list[AsanaTask], SectionStatus, AsanaClient | None]:
+    client = AsanaClient(cfg, today)
+    try:
+        return client.my_open_tasks(), SectionStatus(), client
+    except Exception as exc:  # noqa: BLE001
+        return [], SectionStatus(ok=False, error=f"{type(exc).__name__}: {exc}"), client

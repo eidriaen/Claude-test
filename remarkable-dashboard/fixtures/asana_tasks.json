@@ -1,0 +1,9 @@
+[
+  {"gid": "1201", "name": "Send tilbud til Nordic Print", "project": "Salg", "due_on": "-2"},
+  {"gid": "1202", "name": "Godkjenne fargeprøver RAL 3020", "project": "Produksjon", "due_on": "0"},
+  {"gid": "1203", "name": "Oppdatere prisliste Q4", "project": "Salg", "due_on": "1"},
+  {"gid": "1204", "name": "Skrive brief til ny nettside", "project": "Marked", "due_on": "3"},
+  {"gid": "1205", "name": "Bestille papir til messe", "project": "Marked", "due_on": "5"},
+  {"gid": "1206", "name": "Rydde i Asana-prosjekter", "project": "Internt", "due_on": null},
+  {"gid": "1207", "name": "Møte med regnskap om budsjett", "project": "Internt", "due_on": "8"}
+]
