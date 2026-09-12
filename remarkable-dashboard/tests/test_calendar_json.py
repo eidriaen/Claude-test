@@ -198,3 +198,36 @@ def test_a_title_merely_mentioning_cancellation_survives():
          "startWithTimeZone": "2026-09-10T07:00:00+00:00",
          "endWithTimeZone": "2026-09-10T07:30:00+00:00"}]}))
     assert len(events) == 1
+
+
+# --- free/busy rejection ----------------------------------------------------
+def test_a_free_busy_feed_is_refused_rather_than_rendered():
+    """A grid of "Busy" looks like a working calendar and is not one.
+
+    The fix is at the source -- a publish setting -- and nothing on a page full
+    of Busy points at it, so the section says the feed carries no titles
+    instead.
+    """
+    from datetime import datetime, timedelta
+
+    from daily_sheet.calendar_ics import is_free_busy
+    from daily_sheet.config import TZ
+    from daily_sheet.models import Event
+
+    def ev(title, hour):
+        start = datetime(2026, 9, 11, hour, tzinfo=TZ)
+        return Event(start=start, end=start + timedelta(hours=1), title=title)
+
+    busy = [ev("Busy", h) for h in range(9, 17)]
+    assert is_free_busy(busy)
+
+    # Norwegian, and the empty-title case, come back the same way.
+    assert is_free_busy([ev("Opptatt", 9), ev("", 10), ev("busy", 11)])
+
+    # One real title among many must not rescue a useless feed -- that is the
+    # bug the proportion test exists for.
+    assert is_free_busy(busy + [ev("Kickoff Kongsberg", 17)])
+
+    real = [ev("Kickoff", 9), ev("1:1 with Ida", 10), ev("Busy", 11)]
+    assert not is_free_busy(real)
+    assert not is_free_busy([])

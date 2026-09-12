@@ -10,9 +10,15 @@ import json
 from datetime import date, timedelta
 from pathlib import Path
 
-from .calendar_ics import load_events
+from .calendar_ics import BUSY_WORDS, is_free_busy, load_events
 from .config import Config
 from .remarkable import Rmapi, RmapiError
+
+FREE_BUSY_FIX = (
+    "The feed is published at 'Can view when I'm busy', which strips\n"
+    "titles at source — no parsing recovers them.\n"
+    "Re-publish at 'Can view titles and locations', or switch to the\n"
+    "Power Automate source: see 'Calendar via Power Automate' in the README.")
 
 OK, WARN, FAIL = "OK  ", "WARN", "FAIL"
 _SYM = {OK: "[ok]", WARN: "[warn]", FAIL: "[FAIL]"}
@@ -93,34 +99,32 @@ def check_calendar(cfg: Config, rep: Report) -> None:
     today = date.today()
     monday = today - timedelta(days=today.weekday())
     events, status = load_events(cfg, monday - timedelta(days=7), monday + timedelta(days=14))
+    source = "Power Automate JSON" if cfg.calendar_json else "ICS"
+
     if not status.ok:
-        rep.add(FAIL, "calendar (ICS)", status.error,
-                "Check ICS_URL is the .ics link, not the HTML one, and that it still works")
+        # The loader rejects a titles-free feed outright now, so tell those two
+        # failures apart: one is a broken link, the other is a publish setting.
+        if "no titles" in status.error:
+            rep.add(WARN, f"calendar ({source})", status.error, FREE_BUSY_FIX)
+        else:
+            rep.add(FAIL, f"calendar ({source})", status.error,
+                    "Check ICS_URL is the .ics link, not the HTML one, and that it still works")
         return
     if not events:
-        rep.add(WARN, "calendar (ICS)", "fetched, but no events in the 3-week window",
+        rep.add(WARN, f"calendar ({source})", "fetched, but no events in the 3-week window",
                 "If your calendar is not empty, the feed may be the wrong calendar")
         return
 
-    # A free/busy-only publish level strips titles. Requiring *every* title to
-    # be a busy-word missed this on a real feed: one differently-named entry
-    # and the check passed while the sheet showed nothing but "Busy". Judge it
-    # by proportion, and print the titles so the answer is visible either way.
-    busy_words = {"", "busy", "opptatt", "tentative", "free", "ledig",
-                  "opptatt/busy", "privat", "private", "no title", "(no title)"}
     titles = [(e.title or "").strip() for e in events]
-    opaque = sum(1 for t in titles if t.lower() in busy_words)
-    distinct = sorted({t for t in titles if t.lower() not in busy_words})
+    opaque = sum(1 for t in titles if t.lower() in BUSY_WORDS)
+    distinct = sorted({t for t in titles if t.lower() not in BUSY_WORDS})
 
-    source = "Power Automate JSON" if cfg.calendar_json else "ICS"
-    if opaque >= len(titles) * 0.8:
+    if is_free_busy(events):
+        # Only reachable for the JSON source; the ICS path fails above.
         sample = ", ".join(distinct[:3]) or "none"
         rep.add(WARN, f"calendar ({source})",
                 f"{len(events)} events, {opaque} of them untitled (real titles: {sample})",
-                "The feed is published at 'Can view when I'm busy', which strips\n"
-                "titles at source — no parsing recovers them.\n"
-                "Re-publish at 'Can view titles and locations', or switch to the\n"
-                "Power Automate source: see 'Calendar via Power Automate' in the README.")
+                FREE_BUSY_FIX)
     else:
         rep.add(OK, f"calendar ({source})",
                 f"{len(events)} events, {len(titles) - opaque} titled "

@@ -66,9 +66,37 @@ def load_events(cfg: Config, start: date, end: date) -> tuple[list[Event], Secti
         from .calendar_json import load_json_events
         return load_json_events(cfg, start, end)
     try:
-        return expand_events(fetch_ics(cfg), start, end), SectionStatus()
+        events = expand_events(fetch_ics(cfg), start, end)
     except Exception as exc:  # noqa: BLE001 — any source failure degrades that section only
         return [], SectionStatus(ok=False, error=f"{type(exc).__name__}: {exc}")
+    if is_free_busy(events):
+        # A grid of "Busy" looks like a working calendar and is not one. Say
+        # the feed carries no titles instead, because the fix is at the source
+        # and nothing on a page full of Busy points at it.
+        return [], SectionStatus(
+            ok=False,
+            error=f"feed carries no titles ({len(events)} events, all 'Busy') — "
+                  f"published at 'Can view when I'm busy'. Use CALENDAR_JSON.")
+    return events, SectionStatus()
+
+
+# Words a free/busy publish leaves behind instead of a title, in the languages
+# this calendar actually speaks.
+BUSY_WORDS = {"", "busy", "opptatt", "tentative", "free", "ledig",
+              "opptatt/busy", "privat", "private", "no title", "(no title)"}
+
+
+def is_free_busy(events: list[Event], threshold: float = 0.8) -> bool:
+    """Is this feed stripped of titles?
+
+    By proportion, not unanimously: requiring *every* title to be a busy-word
+    missed it on a real feed, where one differently-named entry let a useless
+    calendar through as healthy.
+    """
+    if not events:
+        return False
+    opaque = sum(1 for e in events if (e.title or "").strip().lower() in BUSY_WORDS)
+    return opaque >= len(events) * threshold
 
 
 def events_on(events: list[Event], day: date) -> list[Event]:
