@@ -7,10 +7,11 @@
     and Tailscale, clones the project, registers the scheduled tasks, turns on
     SSH and Remote Desktop, and stops the machine sleeping.
 
-    Three things it cannot do for you, because each needs a human once:
-    signing into OneDrive, pairing rmapi with a code from my.remarkable.com,
-    and pasting your Asana token into .env. It prints them as a checklist at
-    the end, and SSH is up by then so you can do two of the three remotely.
+    Put a .env from a working machine next to this script and it is carried
+    over -- that is most of the setting-up gone. rmapi pairing is offered
+    during the run. What is left needs a human and a screen: signing into
+    OneDrive, and turning on automatic logon. Both are printed as a checklist
+    at the end, and SSH is up by then.
 
     Nothing here is destructive. An existing .env is never overwritten, and a
     step that fails is reported at the end rather than stopping the rest --
@@ -121,13 +122,71 @@ function Set-EnvValue([string[]]$lines, [string]$key, [string]$value, [switch]$F
     return $out
 }
 
-function Install-App([string]$id, [string]$exe, [string]$label) {
-    if (Have $exe) { Good "$label already installed"; return $true }
-    Note "installing $label..."
-    winget install --id $id -e --silent --accept-source-agreements --accept-package-agreements | Out-Null
-    Update-Path
-    if (Have $exe) { Good "$label installed"; return $true }
-    Problem "$label did not install -- install it by hand and re-run this script"
+function Add-ToPath([string]$dir) {
+    # For this process, and for every future one. A tool that only exists in
+    # this window is no use to the scheduled tasks that run later.
+    if (-not $dir -or -not (Test-Path -LiteralPath $dir)) { return }
+    if (($env:Path -split ';') -notcontains $dir) { $env:Path = "$dir;$env:Path" }
+    try {
+        $machine = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+        if (($machine -split ';') -notcontains $dir) {
+            [Environment]::SetEnvironmentVariable('Path', "$machine;$dir", 'Machine')
+        }
+    } catch {
+        Note "could not add $dir to the system PATH permanently"
+    }
+}
+
+function Find-Tool([string]$exe, [string[]]$probes) {
+    # PATH first, then the places these installers actually put things.
+    #
+    # Checking PATH alone is what made this report "did not install" for tools
+    # that had installed perfectly well: winget writes the new PATH to the
+    # registry for the *installing* user, and if that is not the user this
+    # window belongs to -- an over-the-shoulder UAC prompt is enough -- the
+    # re-read never sees it.
+    $cmd = Get-Command $exe -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    foreach ($p in $probes) {
+        $hit = Get-Item $p -ErrorAction SilentlyContinue |
+               Sort-Object FullName -Descending | Select-Object -First 1
+        if ($hit) {
+            Add-ToPath (Split-Path $hit.FullName -Parent)
+            return $hit.FullName
+        }
+    }
+    return ''
+}
+
+function Install-App([string]$id, [string]$exe, [string]$label, [string[]]$probes = @()) {
+    $found = Find-Tool $exe $probes
+    if ($found) { Good "$label already installed ($found)"; return $true }
+
+    foreach ($scope in @('machine', '')) {
+        # Not $args: that is an automatic variable, and shadowing it inside a
+        # function is the kind of thing that works until it suddenly does not.
+        $wargs = @('install', '--id', $id, '-e', '--silent', '--source', 'winget',
+                   '--accept-source-agreements', '--accept-package-agreements')
+        if ($scope) { $wargs += @('--scope', $scope) }
+        Note "installing $label$(if ($scope) { " (--scope $scope)" })..."
+
+        $output = & winget @wargs 2>&1 | Out-String
+        $code = $LASTEXITCODE
+        Update-Path
+        $found = Find-Tool $exe $probes
+        if ($found) { Good "$label installed ($found)"; return $true }
+
+        # -1978335189 is winget's "no applicable installer / already installed".
+        # Show what it said rather than hiding it: this step failing used to
+        # print four words and leave you with nothing to act on.
+        Write-Host "   winget exited $code" -ForegroundColor DarkGray
+        foreach ($line in ($output -split "`r?`n" | Where-Object { $_.Trim() } |
+                           Select-Object -Last 6)) {
+            Write-Host "     $line" -ForegroundColor DarkGray
+        }
+    }
+
+    Problem "$label did not install. Install it by hand, then run this script again."
     return $false
 }
 
@@ -147,10 +206,17 @@ Good 'winget present'
 
 # ---------------------------------------------------------------- tools
 Step 'Python, Git, Tailscale'
-$havePython = Install-App 'Python.Python.3.12' 'py' 'Python 3.12'
-$haveGit    = Install-App 'Git.Git' 'git' 'Git'
+$havePython = Install-App 'Python.Python.3.12' 'py' 'Python 3.12' @(
+    "$env:SystemRoot\py.exe",
+    "$env:ProgramFiles\Python3*\python.exe",
+    "$env:LOCALAPPDATA\Programs\Python\Python3*\python.exe")
+$haveGit    = Install-App 'Git.Git' 'git' 'Git' @(
+    "$env:ProgramFiles\Git\cmd\git.exe",
+    "${env:ProgramFiles(x86)}\Git\cmd\git.exe",
+    "$env:LOCALAPPDATA\Programs\Git\cmd\git.exe")
 if (-not $NoTailscale) {
-    if (Install-App 'tailscale.tailscale' 'tailscale' 'Tailscale') {
+    if (Install-App 'tailscale.tailscale' 'tailscale' 'Tailscale' @(
+            "$env:ProgramFiles\Tailscale\tailscale.exe")) {
         Todo 'Run "tailscale up" and sign in -- that is how your phone reaches this machine from outside.'
     }
 } else {
@@ -159,7 +225,10 @@ if (-not $NoTailscale) {
 
 # ---------------------------------------------------------------- code
 Step 'Project code'
-if (-not $haveGit) {
+if (-not $haveGit -and (Test-Path -LiteralPath (Join-Path $project 'daily_sheet'))) {
+    # Already here, however it arrived. No git only costs us updates.
+    Good "project already at $Root (no git, so it will not self-update)"
+} elseif (-not $haveGit) {
     Problem 'no git, so the project cannot be cloned'
 } elseif (Test-Path -LiteralPath (Join-Path $Root '.git')) {
     Note 'already cloned -- pulling'
@@ -405,7 +474,8 @@ if (-not $NoClaudeCode) {
     # arriving over SSH. `claude` in the project folder is the whole point --
     # changes get made on the machine rather than pasted at it.
     Step 'Claude Code'
-    if (Install-App 'OpenJS.NodeJS.LTS' 'node' 'Node.js LTS') {
+    if (Install-App 'OpenJS.NodeJS.LTS' 'node' 'Node.js LTS' @(
+            "$env:ProgramFiles\nodejs\node.exe")) {
         try {
             cmd /c "npm install -g @anthropic-ai/claude-code" | Out-Null
             Update-Path
