@@ -32,6 +32,7 @@ param(
     [int]$Port = 8080,
     [string]$EnvFrom = '',
     [string]$BatDir = '',
+    [string]$ProjectDir = '',
     [switch]$NoTailscale,
     [switch]$NoSsh,
     [switch]$NoRdp,
@@ -56,7 +57,17 @@ if (-not $me.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     exit
 }
 
-$project = Join-Path $Root 'remarkable-dashboard'
+# Where the code is. Running this from inside a copy of the project -- however
+# it got there, clone or file copy -- means that copy is the one to set up;
+# cloning a second one beside it would leave two, and the .env in the wrong one.
+if (-not $ProjectDir) {
+    $ProjectDir = if (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'daily_sheet')) {
+        $PSScriptRoot
+    } else {
+        Join-Path $Root 'remarkable-dashboard'
+    }
+}
+$project = $ProjectDir
 $problems = New-Object System.Collections.ArrayList
 $todo     = New-Object System.Collections.ArrayList
 
@@ -146,7 +157,9 @@ function Find-Tool([string]$exe, [string[]]$probes) {
     # window belongs to -- an over-the-shoulder UAC prompt is enough -- the
     # re-read never sees it.
     $cmd = Get-Command $exe -ErrorAction SilentlyContinue
-    if ($cmd) { return $cmd.Source }
+    # .Source is empty for anything that is not a file on disk, and returning
+    # an empty string here would read as "not found" for a tool that is.
+    if ($cmd) { if ($cmd.Source) { return $cmd.Source } else { return $cmd.Name } }
     foreach ($p in $probes) {
         $hit = Get-Item $p -ErrorAction SilentlyContinue |
                Sort-Object FullName -Descending | Select-Object -First 1
@@ -192,8 +205,9 @@ function Install-App([string]$id, [string]$exe, [string]$label, [string[]]$probe
 
 Write-Host ''
 Write-Host 'reMarkable Daily Sheet -- machine setup' -ForegroundColor White
-Write-Host "   project root : $Root"
-Write-Host "   branch       : $Branch"
+Write-Host "   project : $project"
+Write-Host "   branch  : $Branch"
+Write-Host "   user    : $env:USERNAME"
 
 # ---------------------------------------------------------------- winget
 Step 'Package manager'
@@ -225,21 +239,39 @@ if (-not $NoTailscale) {
 
 # ---------------------------------------------------------------- code
 Step 'Project code'
-if (-not $haveGit -and (Test-Path -LiteralPath (Join-Path $project 'daily_sheet'))) {
-    # Already here, however it arrived. No git only costs us updates.
-    Good "project already at $Root (no git, so it will not self-update)"
+$here = Test-Path -LiteralPath (Join-Path $project 'daily_sheet')
+# A copy made by hand has no .git; the repo may also be the parent of the
+# project folder, which is how a plain clone of this repository lands.
+$repoDir = @($project, (Split-Path $project -Parent)) |
+           Where-Object { $_ -and (Test-Path -LiteralPath (Join-Path $_ '.git')) } |
+           Select-Object -First 1
+
+if ($here -and -not $repoDir) {
+    Good "project already at $project"
+    Note 'copied rather than cloned, so it will not update itself. To change that:'
+    Note "  git clone -b $Branch $Repo <somewhere> "
+} elseif ($here -and $haveGit) {
+    Note "updating $repoDir"
+    try {
+        git -C $repoDir fetch origin $Branch
+        git -C $repoDir checkout $Branch
+        git -C $repoDir pull --ff-only origin $Branch
+        Good 'up to date'
+    } catch {
+        Problem "git pull failed: $($_.Exception.Message)"
+    }
+} elseif ($here) {
+    Good "project already at $project"
 } elseif (-not $haveGit) {
-    Problem 'no git, so the project cannot be cloned'
-} elseif (Test-Path -LiteralPath (Join-Path $Root '.git')) {
-    Note 'already cloned -- pulling'
-    git -C $Root fetch origin $Branch
-    git -C $Root checkout $Branch
-    git -C $Root pull --ff-only origin $Branch
-    Good 'up to date'
+    Problem "no git and no project at $project -- nothing to set up"
 } else {
     Note "cloning into $Root"
-    git clone -b $Branch $Repo $Root
-    Good 'cloned'
+    try {
+        git clone -b $Branch $Repo $Root
+        Good 'cloned'
+    } catch {
+        Problem "git clone failed: $($_.Exception.Message)"
+    }
 }
 
 # ---------------------------------------------------------------- python deps
