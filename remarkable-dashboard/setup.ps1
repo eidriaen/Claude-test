@@ -29,6 +29,8 @@ param(
     [string]$At = '08:00',
     [int]$SyncEvery = 15,
     [int]$Port = 8080,
+    [string]$EnvFrom = '',
+    [string]$BatDir = '',
     [switch]$NoTailscale,
     [switch]$NoSsh,
     [switch]$NoRdp,
@@ -82,6 +84,41 @@ function Update-Path {
 
 function Have([string]$exe) {
     return [bool](Get-Command $exe -ErrorAction SilentlyContinue)
+}
+
+function Get-EnvValue([string[]]$lines, [string]$key) {
+    # Read one value out of .env lines. Empty string when unset or blank.
+    foreach ($line in $lines) {
+        $t = $line.Trim()
+        if (-not $t -or $t.StartsWith('#') -or -not $t.Contains('=')) { continue }
+        $name, $value = $t -split '=', 2
+        if ($name.Trim() -eq $key) { return $value.Trim() }
+    }
+    return ''
+}
+
+function Set-EnvValue([string[]]$lines, [string]$key, [string]$value, [switch]$Force) {
+    # Set KEY=value, keeping the file's order and comments. Without -Force an
+    # existing non-empty value is left alone: an .env carried over from a
+    # working machine is the thing we most want to preserve, and "helpfully"
+    # rewriting a token would be the worst kind of tidy-up.
+    $out = @()
+    $seen = $false
+    foreach ($line in $lines) {
+        $t = $line.Trim()
+        if ($t -and -not $t.StartsWith('#') -and $t.Contains('=')) {
+            $name = ($t -split '=', 2)[0].Trim()
+            if ($name -eq $key) {
+                $seen = $true
+                $existing = ($t -split '=', 2)[1].Trim()
+                $out += if ($Force -or -not $existing) { "$key=$value" } else { $line }
+                continue
+            }
+        }
+        $out += $line
+    }
+    if (-not $seen) { $out += "$key=$value" }
+    return $out
 }
 
 function Install-App([string]$id, [string]$exe, [string]$label) {
@@ -197,25 +234,104 @@ if (Test-Path -LiteralPath $rmapi) {
         Todo 'Download the Windows x86_64 rmapi from https://github.com/ddvk/rmapi/releases and put rmapi.exe in C:\tools.'
     }
 }
-Todo 'Run "C:\tools\rmapi.exe" once and paste the code from https://my.remarkable.com/device/desktop/connect. Check the page shows the right account first. SSH is fine for this.'
+# Pairing needs a code from a browser, so it cannot be automated -- but it can
+# be offered now rather than left on a list to do later.
+# Presence of the config is the test, deliberately: running "rmapi ls" unpaired
+# prompts for a code, which would hang a script nobody is watching.
+$rmapiConf = Join-Path $env:APPDATA 'rmapi\rmapi.conf'
+if (-not (Test-Path -LiteralPath $rmapi)) {
+    Todo 'Install rmapi, then run it once to pair.'
+} elseif (Test-Path -LiteralPath $rmapiConf) {
+    Good "already paired (token in $rmapiConf)"
+} else {
+    Write-Host ''
+    Note 'Not paired with the reMarkable cloud yet.'
+    Note 'Open https://my.remarkable.com/device/desktop/connect and CHECK IT SHOWS'
+    Note 'THE ACCOUNT YOU WANT before copying the code -- pairing the wrong one is'
+    Note 'a nuisance to undo.'
+    $answer = Read-Host '   Pair now? [Y/n]'
+    if ($answer -notmatch '^[nN]') {
+        & $rmapi
+        if (Test-Path -LiteralPath $rmapiConf) {
+            Good 'paired'
+        } else {
+            Todo 'Run C:\tools\rmapi.exe and paste the one-time code from my.remarkable.com.'
+        }
+    } else {
+        Todo 'Run C:\tools\rmapi.exe and paste the one-time code from my.remarkable.com.'
+    }
+}
+# The token is per-user. If this script was elevated as a different admin
+# account, it landed in that account's profile and the scheduled tasks -- which
+# run as the logged-on user -- will authenticate as nobody.
+Note "paired as $env:USERNAME; the scheduled tasks must run as this user too"
 
 # ---------------------------------------------------------------- .env
 Step 'Settings file (.env)'
 $envFile = Join-Path $project '.env'
+
+# Bring one you already have. Copying the .env from a working machine is the
+# whole of "step 3", so the script looks for it next to itself before asking
+# you to type secrets into a headless box over SSH.
+if (-not (Test-Path -LiteralPath $envFile)) {
+    $candidates = @()
+    if ($EnvFrom) { $candidates += $EnvFrom }
+    if ($BatDir)  { $candidates += (Join-Path $BatDir '.env') }
+    $candidates += (Join-Path $PSScriptRoot '.env')
+    foreach ($c in $candidates) {
+        if ($c -and (Test-Path -LiteralPath $c) -and
+            ((Resolve-Path $c).Path -ne (Join-Path $project '.env'))) {
+            Copy-Item -LiteralPath $c -Destination $envFile
+            Good "copied your settings from $c"
+            break
+        }
+    }
+}
+if (-not (Test-Path -LiteralPath $envFile)) {
+    if (Test-Path -LiteralPath (Join-Path $project '.env.example')) {
+        Copy-Item (Join-Path $project '.env.example') $envFile
+        Note 'started a new .env from the template'
+    } else {
+        Problem 'no .env and no .env.example -- did the clone work?'
+    }
+}
+
 if (Test-Path -LiteralPath $envFile) {
-    Good '.env already exists -- left untouched'
-} elseif (Test-Path -LiteralPath (Join-Path $project '.env.example')) {
-    Copy-Item (Join-Path $project '.env.example') $envFile
-    $token = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 24 | ForEach-Object { [char]$_ })
-    # Fill in what a machine can know; the secrets are the human's job.
-    (Get-Content $envFile) `
-        -replace '^WEB_TOKEN=.*', "WEB_TOKEN=$token" `
-        -replace '^RMAPI_BIN=.*', "RMAPI_BIN=$rmapi" |
-        Set-Content $envFile -Encoding ASCII
-    Good "created with a fixed WEB_TOKEN ($token)"
-    Todo "Put your ASANA_PAT, CALENDAR_JSON and ANTHROPIC_API_KEY into $envFile."
-} else {
-    Problem 'no .env.example found -- did the clone work?'
+    # Top up what a machine can work out for itself, and never touch a value
+    # that is already there -- an .env carried over from another machine is the
+    # good case, not something to overwrite.
+    $lines = @(Get-Content -LiteralPath $envFile)
+    $lines = Set-EnvValue $lines 'RMAPI_BIN' $rmapi -Force
+    if (-not (Get-EnvValue $lines 'WEB_TOKEN')) {
+        $token = -join ((48..57) + (65..90) + (97..122) |
+                        Get-Random -Count 24 | ForEach-Object { [char]$_ })
+        $lines = Set-EnvValue $lines 'WEB_TOKEN' $token
+        Good "made a fixed WEB_TOKEN for the phone page ($token)"
+    }
+    # An .env carried from another machine names that machine's calendar path,
+    # complete with its username -- so a value being present is not the same as
+    # it being right here. Look it up whenever the file it points at is missing.
+    $cur = Get-EnvValue $lines 'CALENDAR_JSON'
+    if (-not $cur -or -not (Test-Path -LiteralPath $cur)) {
+        $cal = Get-ChildItem "$env:USERPROFILE\OneDrive*" -Filter 'calendar.json' `
+                             -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($cal) {
+            $lines = Set-EnvValue $lines 'CALENDAR_JSON' $cal.FullName -Force
+            Good "found the calendar at $($cal.FullName)"
+        } elseif ($cur) {
+            Note "CALENDAR_JSON points at $cur, which is not on this machine"
+            $lines = Set-EnvValue $lines 'CALENDAR_JSON' '' -Force
+        }
+    }
+    Set-Content -LiteralPath $envFile -Value $lines -Encoding ASCII
+
+    $missing = @('ASANA_PAT', 'ANTHROPIC_API_KEY', 'CALENDAR_JSON') |
+               Where-Object { -not (Get-EnvValue $lines $_) }
+    if ($missing) {
+        Todo "Fill in $($missing -join ', ') in $envFile"
+    } else {
+        Good 'every setting is present'
+    }
 }
 
 # ---------------------------------------------------------------- ssh
@@ -322,10 +438,31 @@ if (-not $NoTasks) {
 }
 
 # ---------------------------------------------------------------- the rest
-Todo 'Sign into OneDrive as this user and let it sync /Apps/DailySheet, then set CALENDAR_JSON in .env to the local path. Needs a screen -- use Remote Desktop.'
-Todo 'Point your Power Automate flow at this machine''s OneDrive folder (same flow, same account -- nothing to rebuild).'
+if (-not (Test-Path -LiteralPath $envFile) -or
+    -not (Get-EnvValue @(Get-Content -LiteralPath $envFile) 'CALENDAR_JSON')) {
+    # Only worth saying when the calendar was not found already -- a checklist
+    # that lists things you have done teaches you to skim it.
+    Todo ('Sign into OneDrive as this user (your work account) and sync ' +
+          'Apps/DailySheet, then re-run this script -- it will find calendar.json ' +
+          'and fill CALENDAR_JSON in. Signing in needs a screen: Remote Desktop or a monitor, once.')
+}
 Todo 'Turn on automatic logon for this user. Scheduled tasks and OneDrive both need a logged-on session, and a headless machine has none after a reboot. Sysinternals Autologon stores the password in LSA rather than the registry in clear text.'
 Todo 'On the laptop, run ".\install-task.ps1 -Remove" so two machines do not fight over today''s sheet.'
+
+# ---------------------------------------------------------------- verify
+Step 'Checking every connection'
+if ($havePython -and (Test-Path -LiteralPath (Join-Path $project 'daily_sheet'))) {
+    Push-Location $project
+    try {
+        py -m daily_sheet doctor
+    } catch {
+        Problem "doctor could not run: $($_.Exception.Message)"
+    } finally {
+        Pop-Location
+    }
+} else {
+    Note 'skipped -- no Python or no project'
+}
 
 Write-Host ''
 Write-Host '────────────────────────────────────────────────────────' -ForegroundColor DarkGray
@@ -341,7 +478,8 @@ $i = 1
 foreach ($t in $todo) { Write-Host "  $i. $t"; $i++ }
 
 Write-Host ''
-Write-Host 'Then check it:' -ForegroundColor White
+Write-Host 'Then, from this machine or your phone:' -ForegroundColor White
 Write-Host "  cd $project"
-Write-Host '  py -m daily_sheet doctor'
+Write-Host '  py -m daily_sheet generate      # build today''s sheet and push it'
+Write-Host '  py -m daily_sheet doctor        # check it again after filling in .env'
 Write-Host ''

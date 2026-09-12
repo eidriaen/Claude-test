@@ -224,9 +224,25 @@ avoid.
 
 ### Installing
 
-Install Windows, sign in, then **download one file and double-click it**:
-[`Setup.bat`](Setup.bat). It fetches the rest itself, and asks Windows for
-administrator rights on its own — no need to right-click.
+Four steps, and only one of them is yours to think about.
+
+1. **Put two files in a folder** on the new machine — a USB stick is fine:
+   [`Setup.bat`](Setup.bat), and **the `.env` from a machine that already
+   works**. (No `.env` yet? Skip it; you will be asked to fill one in.)
+2. **Double-click `Setup.bat`.** It asks Windows for administrator rights
+   itself, downloads everything else, and offers to pair rmapi when it gets
+   there.
+3. **Fill in anything it says is missing** — it lists exactly which keys.
+4. **Run it**: `py -m daily_sheet generate`, or press the button.
+
+The `.env` next to `Setup.bat` is copied in, and nothing in it is overwritten:
+your Asana token, API key and phone token come across as they are. What the
+machine can work out for itself it fills in — where rmapi ended up, a
+`WEB_TOKEN` if you have none, and where OneDrive put `calendar.json` on *this*
+machine rather than the one the file came from.
+
+It finishes by running `doctor`, so the last thing on screen is the state of
+every connection rather than a claim that it worked.
 
 Or, if you prefer a line in PowerShell:
 

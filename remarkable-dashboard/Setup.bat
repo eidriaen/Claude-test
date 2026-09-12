@@ -41,6 +41,10 @@ if exist "%~dp0setup.ps1" (
     set "SCRIPT=%PUBLIC%\setup.ps1"
 )
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT%" %*
+REM -BatDir tells setup.ps1 where this file lives, so a .env sitting beside it
+REM -- on a USB stick, in Downloads -- is picked up instead of you retyping
+REM secrets into a machine with no keyboard. The trailing "." matters: %~dp0
+REM ends with a backslash, and a backslash before a closing quote escapes it.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT%" -BatDir "%~dp0." %*
 echo.
 pause
