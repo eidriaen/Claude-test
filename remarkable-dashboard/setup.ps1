@@ -163,15 +163,20 @@ if (Test-Path -LiteralPath $rmapi) {
         New-Item -ItemType Directory -Force -Path 'C:\tools' | Out-Null
         $rel = Invoke-RestMethod 'https://api.github.com/repos/ddvk/rmapi/releases/latest' `
                                  -Headers @{ 'User-Agent' = 'daily-sheet-setup' }
-        # Match the architecture explicitly. The releases page lists an arm64
-        # Windows build right next to the Intel one, and picking that gives
-        # "This app can't run on your PC" with nothing to say why.
+        # Exclude arm rather than matching the Intel name. The Windows builds
+        # are "rmapi-win64.zip" and "rmapi-win-arm64.zip" -- no "windows", no
+        # "x86_64", so a filter naming the architecture it wants matches
+        # nothing, while one ruling out the wrong architecture keeps working
+        # when the names change again. Picking the arm build gives "This app
+        # can't run on your PC" with nothing to say why.
         $asset = $rel.assets |
-            Where-Object { $_.name -match '(?i)windows' -and
-                           $_.name -match '(?i)(x86_64|amd64|intel)' -and
+            Where-Object { $_.name -match '(?i)win' -and
+                           $_.name -notmatch '(?i)arm' -and
                            $_.name -match '(?i)\.zip$' } |
             Select-Object -First 1
-        if (-not $asset) { throw 'no Windows x86_64 zip in the latest release' }
+        if (-not $asset) {
+            throw "no Intel Windows zip in release $($rel.tag_name); assets were: $($rel.assets.name -join ', ')"
+        }
 
         $zip = Join-Path $env:TEMP $asset.name
         Invoke-WebRequest $asset.browser_download_url -OutFile $zip -UseBasicParsing
@@ -181,6 +186,11 @@ if (Test-Path -LiteralPath $rmapi) {
         $exe = Get-ChildItem $dir -Filter 'rmapi.exe' -Recurse | Select-Object -First 1
         if (-not $exe) { throw 'no rmapi.exe inside the zip' }
         Copy-Item $exe.FullName $rmapi -Force
+        # Run it. A binary for the wrong architecture installs perfectly and
+        # then refuses to start, which is not something to discover weeks
+        # later when a push fails.
+        $ver = (& $rmapi version 2>&1 | Out-String).Trim()
+        if ($LASTEXITCODE -ne 0) { throw "$($asset.name) installed but will not run: $ver" }
         Good "installed $($asset.name) to $rmapi"
     } catch {
         Problem "could not fetch rmapi: $($_.Exception.Message)"
