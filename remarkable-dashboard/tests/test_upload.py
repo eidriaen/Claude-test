@@ -25,7 +25,8 @@ def rm(tmp_path):
     return obj
 
 
-def _stub(rm, *, put_fails_until_forced=False, put_fails_always=False, mv_fails=False):
+def _stub(rm, *, put_fails_until_forced=False, put_fails_always=False, mv_fails=False,
+          mv_fails_once=False):
     """Replace _run with a recorder that mimics rmapi's behaviour."""
     def fake(*args, check=True, cwd=None):
         rm.calls.append(args)
@@ -33,6 +34,9 @@ def _stub(rm, *, put_fails_until_forced=False, put_fails_always=False, mv_fails=
         if cmd == "mkdir":
             return None
         if cmd == "mv" and mv_fails:
+            raise RmapiError("rmapi mv failed: entry already exists")
+        if cmd == "mv" and mv_fails_once and len(
+                [c for c in rm.calls if c[0] == "mv"]) == 1:
             raise RmapiError("rmapi mv failed: entry already exists")
         if cmd == "put":
             forced = "--force" in args
@@ -69,24 +73,48 @@ def test_same_day_rerun_archives_the_old_sheet_then_uploads(rm, tmp_path):
 
     result = rm.upload(pdf, "Daily")
 
-    assert "archived" in result
+    assert "Archived dailies" in result
     mv = [c for c in rm.calls if c[0] == "mv"]
     assert mv, "the existing sheet must be moved, not overwritten"
     assert mv[0][1] == "Daily/Daily Sheet — 2026-09-11"
-    assert mv[0][2] == "Daily/Archive"
+    assert mv[0][2] == "Daily/Archived dailies"
     assert "--force" not in sum((list(c) for c in _puts(rm)), []), \
         "force destroys pen marks; archiving first must be preferred"
 
 
-def test_falls_back_to_force_only_when_archiving_fails(rm, tmp_path):
+def test_a_taken_archive_name_is_suffixed_rather_than_abandoned(rm, tmp_path):
+    """Two runs in one day must not cost the earlier sheet.
+
+    The archive already holding that name is not a reason to give up on
+    archiving -- it is a reason to pick another name.
+    """
+    _stub(rm, put_fails_until_forced=True, mv_fails_once=True)
+    pdf = tmp_path / "Daily Sheet — 2026-09-11.pdf"
+    pdf.write_bytes(b"%PDF")
+
+    rm.upload(pdf, "Daily")
+
+    mv = [c for c in rm.calls if c[0] == "mv"]
+    assert len(mv) == 2, "a taken name must be retried under another"
+    assert mv[1][2].startswith("Daily/Archived dailies/Daily Sheet — 2026-09-11 (")
+    assert [c for c in rm.calls if c[0] == "put"], "and the new sheet still goes up"
+
+
+def test_an_unarchivable_sheet_is_never_overwritten(rm, tmp_path):
+    """Refuse the push rather than destroy a sheet that may carry unread marks.
+
+    This used to force instead, which is the one outcome the archive exists to
+    prevent: a day's pen marks gone, with only a line in the log to say so.
+    """
     _stub(rm, put_fails_always=True, mv_fails=True)
     pdf = tmp_path / "Daily Sheet — 2026-09-11.pdf"
     pdf.write_bytes(b"%PDF")
 
-    result = rm.upload(pdf, "Daily")
+    with pytest.raises(RmapiError, match="Refusing to replace"):
+        rm.upload(pdf, "Daily")
 
-    assert "could not archive" in result, "the caller must learn a sheet was overwritten"
-    assert any("--force" in c for c in _puts(rm))
+    assert not any("--force" in c for c in _puts(rm)), \
+        "nothing may be forced over a sheet that could not be archived"
 
 
 def test_unrelated_put_failure_is_not_swallowed(rm, tmp_path):

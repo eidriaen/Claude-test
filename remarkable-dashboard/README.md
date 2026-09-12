@@ -113,7 +113,7 @@ rmapi mkdir Daily
 rmapi put "out/Daily Sheet — 2026-09-11.pdf" Daily
 rmapi ls Daily
 rmapi geta "Daily/Daily Sheet — 2026-09-11"     # after writing on it
-rmapi mv "Daily/Daily Sheet — 2026-09-11" Daily/Archive
+rmapi mv "Daily/Daily Sheet — 2026-09-11" "Daily/Archived dailies"
 ```
 
 If `geta` fails, read-back won't work and the run will log it and still ship the
@@ -127,7 +127,7 @@ Double-click **`Daily Sheet.bat`** (or `dashboard.pyw` directly). Five buttons:
 |---|---|
 | **Sync + Generate Daily** | The whole cycle: reads your ticks, completes them in Asana, rebuilds today's sheet without them, pushes it back. One sheet per day — this replaces today's rather than adding another |
 | **Sync only** | Pushes ticks to Asana without rebuilding the sheet |
-| **What's on the tablet** | Lists `Daily/` and `Archive/`, flagging which sheet sync will read |
+| **What's on the tablet** | Lists `Daily/` and `Daily/Archived dailies/`, flagging which sheet sync will read |
 | **Check Asana board** | Shows the sections and custom fields the Projects page reads |
 | **Check connections** | Tests rmapi, the calendar feed, Asana, and the API key |
 
@@ -430,6 +430,13 @@ A failed push exits non-zero, so a broken run shows up as **Last Run Result**
 | 5 | **Tasks** — Asana tasks assigned to you, High priority first, with H/M/L pickers and the New tasks box. Cards on the pipeline board are excluded — they appear on Projects |
 | 6 | **Projects** — the pipeline board by section, with Active / Signed / Incoming totals |
 | 7 | **Notes** — blank ruled page |
+
+One sheet per day. Re-running on the same day refreshes that one document —
+your ticks are read off it first, so nothing written is lost. When the date
+rolls over, yesterday's sheet is **moved** into `Daily/Archived dailies`, never
+deleted, and a sheet that cannot be archived is never replaced: the push fails
+and says why instead. Change the folder name with `REMARKABLE_ARCHIVE` in
+`.env`.
 
 Every page carries the same tappable nav bar. Task lists paginate rather than
 shrink the type.

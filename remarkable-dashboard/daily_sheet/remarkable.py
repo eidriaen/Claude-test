@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from .config import Config
@@ -125,21 +126,46 @@ class Rmapi:
                 raise
 
         existing = f"{folder}/{pdf.stem}"
-        archived = False
-        try:
-            self.move(existing, self.cfg.archive_folder)
-            archived = True
-        except RmapiError:
-            pass        # name already taken in Archive, or mv unsupported
+        self.archive(existing)
 
         try:
             self._put(pdf, folder)
-            return "replaced (previous sheet archived)" if archived else "replaced"
+            return f"replaced (previous sheet moved to {self.cfg.archive_folder})"
         except RmapiError as exc:
             if "already exists" not in str(exc).lower():
                 raise
+            # The old document is safe in the archive by now, so replacing what
+            # is left in place destroys nothing.
             self._put(pdf, folder, force=True)
-            return "overwritten (could not archive the previous sheet)"
+            return f"replaced (previous sheet moved to {self.cfg.archive_folder})"
+
+    def archive(self, doc_path: str) -> str:
+        """Move a sheet into the archive folder, and do not come back without it.
+
+        A sheet that has not been read may carry pen marks nobody has seen, so
+        losing one is the single worst thing this tool can do. If the archive
+        already holds that name -- two runs in one day, a restored sheet -- the
+        move is retried under a suffixed name rather than abandoned, because
+        the fallback for "could not archive" used to be overwriting the
+        original, which is the outcome the archive exists to prevent.
+        """
+        self.ensure_folder(self.cfg.archive_folder)
+        try:
+            self.move(doc_path, self.cfg.archive_folder)
+            return self.cfg.archive_folder
+        except RmapiError as first:
+            stamp = datetime.now().strftime("%H%M")
+            name = doc_path.rsplit("/", 1)[-1]
+            alt = f"{self.cfg.archive_folder}/{name} ({stamp})"
+            try:
+                self.move(doc_path, alt, make_folder=False)
+                return alt
+            except RmapiError:
+                raise RmapiError(
+                    f"could not archive {doc_path}: {first}. Refusing to replace "
+                    f"it -- it may carry pen marks that have not been read. Move "
+                    f"or rename it on the tablet, then run this again."
+                ) from first
 
     def _put(self, pdf: Path, folder: str, force: bool = False) -> None:
         """Upload `pdf`, naming the document after the file alone.
@@ -155,9 +181,16 @@ class Rmapi:
         args = ["put"] + (["--force"] if force else []) + [pdf.name, folder]
         self._run(*args, cwd=pdf.parent)
 
-    def move(self, src: str, dst_folder: str) -> None:
-        self.ensure_folder(dst_folder)
-        self._run("mv", src, dst_folder)
+    def move(self, src: str, dst: str, make_folder: bool = True) -> None:
+        """Move `src` to `dst`.
+
+        `dst` is normally a folder to move into. Pass make_folder=False when it
+        is a document path to rename to instead -- creating a folder of that
+        name first is not a no-op, it is the wrong thing entirely.
+        """
+        if make_folder:
+            self.ensure_folder(dst)
+        self._run("mv", src, dst)
 
     def download_annotated(self, doc_path: str, dest_dir: Path) -> Path:
         """Download the document with pen marks baked in, as a PDF.

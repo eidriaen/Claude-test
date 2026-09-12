@@ -24,6 +24,7 @@ class Config:
     anthropic_api_key: str
     rmapi_bin: str
     remarkable_folder: str
+    remarkable_archive: str
     project_dir: Path
     out_dir: Path
     tasks_file: Path
@@ -35,7 +36,7 @@ class Config:
 
     @property
     def archive_folder(self) -> str:
-        return f"{self.remarkable_folder}/Archive"
+        return f"{self.remarkable_folder}/{self.remarkable_archive}"
 
 
 def load_config(use_fixtures: bool = False, dry_run: bool = False) -> Config:
@@ -50,6 +51,8 @@ def load_config(use_fixtures: bool = False, dry_run: bool = False) -> Config:
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip(),
         rmapi_bin=os.getenv("RMAPI_BIN", "rmapi").strip() or "rmapi",
         remarkable_folder=os.getenv("REMARKABLE_FOLDER", "Daily").strip() or "Daily",
+        remarkable_archive=os.getenv("REMARKABLE_ARCHIVE", "Archived dailies").strip()
+                           or "Archived dailies",
         project_dir=PROJECT_DIR,
         out_dir=out_dir,
         tasks_file=PROJECT_DIR / "tasks.json",

@@ -77,7 +77,8 @@ def ingest_yesterday(cfg: Config, rm: Rmapi, store: TaskStore, asana, today: dat
     write_notes(cfg, marks.notes, yesterday)
 
     try:
-        rm.move(doc, cfg.archive_folder)
+        where = rm.archive(doc)
+        log(cfg, f"archived yesterday's sheet to {where}")
     except RmapiError as exc:
         log(cfg, f"warn: archive failed: {exc}")
     return report
