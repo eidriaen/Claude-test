@@ -14,6 +14,14 @@ from .calendar_ics import BUSY_WORDS, is_free_busy, load_events
 from .config import Config
 from .remarkable import Rmapi, RmapiError
 
+CALENDAR_FILE_FIX = (
+    "The file Power Automate writes has not arrived on this machine.\n"
+    "  1. Is OneDrive signed in as the WORK account and finished syncing?\n"
+    "  2. Right-click the DailySheet folder -> 'Always keep on this device'.\n"
+    "     An online-only file is not on disk, and this reads from disk.\n"
+    "  3. Has the flow run since you set it up? Check make.powerautomate.com.\n"
+    "Then set CALENDAR_JSON in .env to the local path.")
+
 FREE_BUSY_FIX = (
     "The feed is published at 'Can view when I'm busy', which strips\n"
     "titles at source — no parsing recovers them.\n"
@@ -102,10 +110,14 @@ def check_calendar(cfg: Config, rep: Report) -> None:
     source = "Power Automate JSON" if cfg.calendar_json else "ICS"
 
     if not status.ok:
-        # The loader rejects a titles-free feed outright now, so tell those two
-        # failures apart: one is a broken link, the other is a publish setting.
+        # Three different failures used to share one remedy, and it was right
+        # for exactly one of them. A missing synced file has nothing to do with
+        # the ICS link, and being told to check that link sends you off to
+        # re-do the part that already works.
         if "no titles" in status.error:
             rep.add(WARN, f"calendar ({source})", status.error, FREE_BUSY_FIX)
+        elif cfg.calendar_json:
+            rep.add(FAIL, f"calendar ({source})", status.error, CALENDAR_FILE_FIX)
         else:
             rep.add(FAIL, f"calendar ({source})", status.error,
                     "Check ICS_URL is the .ics link, not the HTML one, and that it still works")
