@@ -148,6 +148,41 @@ def lan_address() -> str:
         s.close()
 
 
+def tailscale_address() -> tuple[str, str] | None:
+    """(ip, name) of this machine on the tailnet, or None if Tailscale is not
+    installed or not up.
+
+    The LAN address only works on the office wifi. The phone's bookmark should
+    carry the Tailscale one, which is the same on wifi and on 5G, so that is the
+    link we print first when it exists. `tailscale status --json` is the one
+    source that has both the 100.x address and the MagicDNS name.
+    """
+    candidates = ["tailscale"]
+    if sys.platform == "win32":
+        pf = os.environ.get("ProgramFiles", r"C:\Program Files")
+        candidates.append(os.path.join(pf, "Tailscale", "tailscale.exe"))
+    for exe in candidates:
+        try:
+            out = subprocess.run([exe, "status", "--json"], capture_output=True,
+                                 text=True, timeout=5)
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if out.returncode != 0:
+            continue
+        try:
+            st = json.loads(out.stdout)
+        except ValueError:
+            continue
+        if st.get("BackendState") != "Running":
+            return None
+        ips = [ip for ip in st.get("TailscaleIPs", []) if ":" not in ip]
+        if not ips:
+            return None
+        name = (st.get("Self") or {}).get("DNSName", "").rstrip(".")
+        return ips[0], name.split(".")[0] if name else ""
+    return None
+
+
 class Busy(Exception):
     """Something is already running."""
 
@@ -707,8 +742,16 @@ def main(argv: list[str] | None = None) -> int:
     token, generated = load_token()
     httpd = serve(args.host, args.port, token, args.quiet, generated)
 
-    where = lan_address() if args.host in ("0.0.0.0", "") else args.host
+    bound_to_all = args.host in ("0.0.0.0", "")
+    lan = lan_address() if bound_to_all else args.host
+    ts = tailscale_address() if bound_to_all else None
+    # The link the phone should keep is the one that works from anywhere.
+    where = ts[0] if ts else lan
     print(f"Daily Sheet server on http://{where}:{args.port}")
+    if ts:
+        print(f"    Tailscale  http://{ts[0]}:{args.port}"
+              + (f"   (MagicDNS: http://{ts[1]}:{args.port})" if ts[1] else ""))
+        print(f"    Office LAN http://{lan}:{args.port}   (wifi only)")
     if generated:
         # Say which of the two it is. "No WEB_TOKEN" alone sent someone hunting
         # for a typo in a file that did not exist.
@@ -724,6 +767,11 @@ def main(argv: list[str] | None = None) -> int:
     print()
     print("On the phone, open:")
     print(f"    http://{where}:{args.port}/?t={token}")
+    if ts:
+        print("(the Tailscale link -- it works on the office wifi and on 5G alike)")
+    else:
+        print("(the office LAN link -- install Tailscale on this machine and the")
+        print(" phone to get one that also works away from the office)")
     print("then Share -> Add to Home Screen. Ctrl-C here to stop.")
     try:
         httpd.serve_forever()

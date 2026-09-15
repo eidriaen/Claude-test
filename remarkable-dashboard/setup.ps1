@@ -28,7 +28,7 @@ param(
     [string]$Branch = 'ReMarkable-dashboard',
     [string]$Repo = 'https://github.com/eidriaen/Claude-test.git',
     [string]$At = '08:00',
-    [int]$SyncEvery = 15,
+    [int]$SyncEvery = 5,
     [int]$Port = 8080,
     [string]$EnvFrom = '',
     [string]$BatDir = '',
@@ -529,8 +529,8 @@ if (-not $NoTasks) {
     $installer = Join-Path $project 'install-task.ps1'
     if (Test-Path -LiteralPath $installer) {
         try {
-            & $installer -At $At -SyncEvery $SyncEvery -Port $Port -Server
-            Good "daily at $At, sync every $SyncEvery min, server at logon"
+            & $installer -At $At -Every $SyncEvery -Port $Port -Server
+            Good "one task every $SyncEvery min (sheet from $At), server at logon"
         } catch {
             Problem "install-task.ps1 failed: $($_.Exception.Message)"
         }

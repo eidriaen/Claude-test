@@ -22,6 +22,15 @@ TIMEOUT = 180  # rmapi uploads on a slow line can take a while
 class RmapiError(RuntimeError):
     pass
 
+class NoMarksYet(RmapiError):
+    """The sheet is on the tablet but has never been written on.
+
+    rmapi's `geta` reports an untouched document as "the document has no pages"
+    because there is no ink layer to bake in. For read-back that is not a
+    failure -- there is simply nothing to read yet.
+    """
+
+
 
 @dataclass
 class Rmapi:
@@ -222,6 +231,8 @@ class Rmapi:
             found = sorted(work.glob("*.pdf"), key=lambda f: f.stat().st_mtime)
             if not found:
                 err = (p.stderr or p.stdout or "").strip()
+                if "has no pages" in err:
+                    raise NoMarksYet(f"{doc_path} has no ink yet")
                 raise RmapiError(f"rmapi geta produced no PDF for {doc_path}: {err[:200]}")
 
             final = dest_dir / "annotated.pdf"

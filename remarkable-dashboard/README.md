@@ -151,13 +151,18 @@ that travels:
 .\"Daily Sheet Server.bat"          # or: py serve.py
 ```
 
-It prints the address and a link with the token in it:
+It prints the addresses and a link with the token in it. When Tailscale is up
+on the machine, the Tailscale address comes first and is the one in the link,
+because it works from the office wifi and from 5G alike; the LAN address is
+listed as well for wifi-only use:
 
 ```
-Daily Sheet server on http://192.168.1.40:8080
+Daily Sheet server on http://100.70.141.75:8080
+    Tailscale  http://100.70.141.75:8080   (MagicDNS: http://minipc:8080)
+    Office LAN http://192.168.1.40:8080   (wifi only)
 
 On the phone, open:
-    http://192.168.1.40:8080/?t=Xk8sP2mq…
+    http://100.70.141.75:8080/?t=Xk8sP2mq…
 ```
 
 Open that on the phone. To install it, tap **Home screen** at the bottom of the
@@ -258,13 +263,13 @@ Roughly ten minutes later the machine has:
 | **Git + the project** | cloned to `C:\Claude-test`, on this branch |
 | **rmapi** | the right build for the architecture, in `C:\tools` |
 | **Tailscale** | installed, waiting for `tailscale up` |
-| **Scheduled tasks** | sheet at 08:00, ticks read every 15 min, phone server at logon |
+| **Scheduled tasks** | one task every 5 min: sheet from 08:00, then ticks read into Asana; phone server at logon |
 | **SSH and Remote Desktop** | on, so it never needs a keyboard again |
 | **Claude Code** | with Node, so changes get made *on* the machine over SSH |
 | **`.env`** | created from the template with a fixed `WEB_TOKEN` |
 | **Power** | never sleeps on mains |
 
-Options: `-Root D:\somewhere`, `-At 07:30`, `-SyncEvery 10`, `-Port 9000`,
+Options: `-Root D:\somewhere`, `-At 07:30`, `-SyncEvery 10` (the tick interval), `-Port 9000`,
 `-NoTailscale`, `-NoRdp`, `-NoSsh`, `-NoTasks`, `-NoClaudeCode`. Pass them
 straight to the `.bat` — `Setup.bat -At 07:30` works.
 
@@ -470,16 +475,20 @@ Useful flags:
 ### Windows
 
 ```powershell
-.\install-task.ps1              # daily at 08:00
-.\install-task.ps1 -At 07:30    # re-run to change the time
+.\install-task.ps1                     # every 5 min, sheet from 08:00
+.\install-task.ps1 -At 07:30 -Every 10  # re-run to change either
 .\install-task.ps1 -Remove
 ```
 
-That registers a task called **reMarkable Daily Sheet** which calls `run.ps1`.
-It runs only while you're logged on, so there's no stored password. If the
-machine is asleep or off at the scheduled time the run isn't lost —
-`StartWhenAvailable` fires it as soon as the machine is back, so a sheet still
-lands before you pick the tablet up.
+That registers one task called **reMarkable Daily Sheet** which calls
+`run.ps1 -Auto` every five minutes, all day. Each tick decides for itself:
+before 08:00 it does nothing; from 08:00 it generates and pushes today's sheet,
+retrying on the next tick if the push failed; and once the sheet is up (a
+marker file `out/pushed-<date>` records that) every tick reads the ticks off it
+into Asana. So there is no separate sync task any more, and a machine that was
+off at 08:00 puts the sheet up on its first tick back.
+
+It runs only while you're logged on, so there's no stored password.
 
 ```powershell
 Start-ScheduledTask -TaskName 'reMarkable Daily Sheet'   # run it now

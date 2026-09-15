@@ -17,6 +17,8 @@ param(
     [switch]$DryRun,
     [switch]$Fixtures,
     [switch]$Sync,
+    [switch]$Auto,
+    [string]$GenerateAt = '08:00',
     [string]$Date
 )
 
@@ -41,6 +43,28 @@ if (-not $exe) {
     exit 1
 }
 
+# -Auto folds the two old tasks (08:00 generate, 15-minute sync) into one
+# timer. A marker file records that today's sheet has been pushed; until it
+# exists, every tick from -GenerateAt onwards tries generate (so a failed push
+# is retried five minutes later instead of waiting for tomorrow), and once it
+# exists every tick is a sync. Before -GenerateAt there is nothing to do.
+$marker = $null
+if ($Auto) {
+    $today = Get-Date -Format 'yyyy-MM-dd'
+    $marker = Join-Path $PSScriptRoot "out\pushed-$today"
+    if (Test-Path -LiteralPath $marker) {
+        $Sync = $true
+    } else {
+        try { $from = [datetime]::ParseExact($GenerateAt, 'HH:mm', $null) }
+        catch { Write-Log "ERROR: -GenerateAt must look like 08:00. Got '$GenerateAt'."; exit 1 }
+        if ((Get-Date).TimeOfDay -lt $from.TimeOfDay) {
+            # Quiet: this fires every five minutes all night.
+            exit 0
+        }
+        $Sync = $false
+    }
+}
+
 $args = $pre + @('-m', 'daily_sheet', $(if ($Sync) { 'sync' } else { 'generate' }))
 if (-not $Sync) {
     if ($Fixtures) { $args += '--fixtures' }
@@ -53,4 +77,8 @@ Write-Log "start: $exe $($args -join ' ')"
 $code = $LASTEXITCODE
 
 if ($code -ne 0) { Write-Log "FAILED with exit code $code" }
+elseif ($marker -and -not $Sync -and -not $DryRun) {
+    New-Item -ItemType Directory -Force (Split-Path $marker) | Out-Null
+    Set-Content -LiteralPath $marker -Value (Get-Date -Format 's') -Encoding ascii
+}
 exit $code

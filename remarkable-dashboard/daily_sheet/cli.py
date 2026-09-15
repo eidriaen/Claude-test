@@ -24,7 +24,7 @@ from .calendar_ics import load_events
 from .config import Config, load_config
 from .models import AsanaTask, IngestionReport, SectionStatus
 from .readback import Marks, read_marks, set_strip_dir
-from .remarkable import Rmapi, RmapiError
+from .remarkable import NoMarksYet, Rmapi, RmapiError
 from .render import SheetData, render_sheet
 from .tasks import TaskStore, parse_pen_line
 
@@ -424,6 +424,11 @@ def sync(cfg: Config, day: date) -> int:
         annotated = rm.download_annotated(doc, cfg.out_dir / "annotated")
         set_strip_dir(cfg.out_dir / "strips")
         marks = read_marks(annotated, layout, cfg.anthropic_api_key)
+    except NoMarksYet:
+        # Nothing written on it yet. Expected all morning, and every five
+        # minutes when this runs on a timer, so it is not a failure.
+        log(cfg, f"sync {day.isoformat()}: no marks on the sheet yet")
+        return 0
     except Exception as exc:  # noqa: BLE001 — a bad read must not lose the sheet
         log(cfg, f"sync: read failed: {type(exc).__name__}: {exc}")
         return 1
