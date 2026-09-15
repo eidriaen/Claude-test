@@ -1,0 +1,17 @@
+# 08:00 Europe/Oslo, every day.
+#
+# Persistent=true is the part that matters on a cloud box that gets rebooted or
+# migrated: a missed 08:00 fires as soon as the machine is back, rather than
+# leaving you without a sheet for the day.
+[Unit]
+Description=Daily sheet at 08:00
+
+[Timer]
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+# Cloud hosts reboot in herds; a minute of jitter keeps this off the exact
+# second everything else wakes up.
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

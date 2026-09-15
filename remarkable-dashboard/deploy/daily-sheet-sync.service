@@ -1,0 +1,17 @@
+# Read the pen marks off today's sheet and push them to Asana.
+#
+# Never renders and never archives, so it is safe to run while you are writing
+# on the sheet: marks made after a pass are picked up by the next one.
+[Unit]
+Description=Read reMarkable ticks into Asana
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=__USER__
+WorkingDirectory=/opt/daily-sheet
+ExecStart=/opt/daily-sheet/.venv/bin/python -m daily_sheet sync
+TimeoutStartSec=900
+StandardOutput=journal
+StandardError=journal

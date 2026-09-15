@@ -1,0 +1,19 @@
+# Build today's sheet and push it to the tablet.
+#
+# Type=oneshot, not a daemon: it runs, it finishes, the timer brings it back.
+# A failed push exits non-zero, so `systemctl status` and `journalctl` show a
+# broken run rather than silence.
+[Unit]
+Description=Build the reMarkable daily sheet and push it
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=__USER__
+WorkingDirectory=/opt/daily-sheet
+ExecStart=/opt/daily-sheet/.venv/bin/python -m daily_sheet generate
+# Long enough for a slow upload, short enough that a hung run is not forever.
+TimeoutStartSec=1800
+StandardOutput=journal
+StandardError=journal

@@ -331,6 +331,64 @@ Asana. Making that safe means a real hostname, a certificate and a reverse
 proxy in front — a different project, and Tailscale removes the need for all of
 it.
 
+## Running it on a cloud server
+
+For when no machine at home or in the office is reliably on. Everything here
+runs on Linux — reportlab renders the sheet, rmapi has a Linux build and pairs
+headlessly, Asana and Anthropic are plain HTTPS.
+
+```bash
+git clone -b ReMarkable-dashboard https://github.com/eidriaen/Claude-test.git
+cd Claude-test/remarkable-dashboard
+sudo ./deploy/install.sh
+```
+
+That installs to `/opt/daily-sheet` with its own virtualenv, sets the machine's
+timezone to Europe/Oslo, and registers three systemd units:
+
+| Unit | What |
+|---|---|
+| `daily-sheet-generate.timer` | 08:00 daily, `Persistent=true` so a reboot at 07:59 does not cost you the day's sheet |
+| `daily-sheet-sync.timer` | every 15 minutes, reads ticks into Asana |
+| `daily-sheet-server.service` | the phone page on :8080, restarted if it dies |
+
+The timezone step is not cosmetic: `OnCalendar` follows the system clock, and a
+cloud host is UTC by default — an 08:00 timer would fire at 10:00 Oslo in
+summer, which is a schedule that still looks plausible.
+
+```bash
+systemctl list-timers 'daily-sheet*'
+journalctl -u daily-sheet-generate -n 50
+sudo -u $USER /opt/daily-sheet/.venv/bin/python -m daily_sheet doctor
+```
+
+### The calendar is the hard part
+
+The calendar arrives through OneDrive's **desktop sync client**, which needs a
+Windows desktop session. A cloud box has none, so something has to relay
+`calendar.json` out of Power Automate to somewhere the server can fetch:
+
+| Route | Needs admin or premium? | Catch |
+|---|---|---|
+| **Dropbox / Google Drive connector** — a second *Create file* in the same flow | No, both are standard | A DLP policy may block business and personal connectors in one flow; then use a second flow |
+| **OneDrive share link** the server downloads | No | The tenant likely blocks anonymous links — the same policy that caps ICS at free/busy |
+| **HTTP POST to the server** | Premium connector | Cleanest if you have it |
+| **Microsoft Graph** | Admin consent | The proper answer, and the wall this hit in the first place |
+
+Try Dropbox first: one extra action, and a personal API token takes two minutes
+with no admin anywhere.
+
+### Before you do this
+
+A cloud server puts your Asana token, reMarkable credentials, Anthropic key and
+a copy of your work calendar on a rented machine on the public internet.
+Everything today lives on hardware you hold. That is a real change, and worth
+deciding deliberately rather than by drift.
+
+Keep `serve.py` off the open internet regardless — it speaks plain HTTP, so a
+forwarded port puts the access token on the wire in clear text. Install
+Tailscale on the server and reach it that way, exactly as with the mini PC.
+
 ## Calendar via Power Automate
 
 Use this when Outlook's publish setting is capped at **"Can view when I'm busy"**.
