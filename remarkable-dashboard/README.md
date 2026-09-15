@@ -512,7 +512,7 @@ A failed push exits non-zero, so a broken run shows up as **Last Run Result**
 | 2–16 | **Week** — last week through thirteen ahead, with ‹ Prev / Next › and a This week jump |
 | 5 | **Tasks** — Asana tasks assigned to you, High priority first, with H/M/L pickers and the New tasks box. Cards on the pipeline board are excluded — they appear on Projects |
 | 6 | **Projects** — the pipeline board by section, with Active / Signed / Incoming totals |
-| 7 | **Notes** — blank ruled page |
+| 7 | **Accounting** — the same board grouped by *Accounting Month*, earliest first, Delivered projects left out, with Earlier / This month / Later totals |
 
 One sheet per day. Re-running on the same day refreshes that one document —
 your ticks are read off it first, so nothing written is lost. When the date
@@ -547,7 +547,6 @@ Then:
 - ticked Asana task → completed in Asana
 - digit in the grey box → new priority 1–3
 - **New tasks** box → transcribed, one task per line, `!!` = P1, `!` = P2
-- **Notes** page → `notes/YYYY-MM-DD.md`
 - anything unreadable comes back as an image strip on tomorrow's page 1
 
 Nothing is ever deleted. Asana tasks are only completed, never edited.

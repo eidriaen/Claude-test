@@ -71,7 +71,9 @@ def test_tap_targets_are_at_least_44px(sheet):
 
 def test_free_text_regions_exist(sheet):
     kinds = {r.kind for r in sheet["regions"]}
-    assert "newtasks" in kinds and "notes" in kinds
+    assert "newtasks" in kinds
+    # The Notes page is gone (Accounting took its slot), so no notes region.
+    assert "notes" not in kinds
 
 
 # --- ink detection ---------------------------------------------------------

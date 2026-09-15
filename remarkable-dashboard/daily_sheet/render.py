@@ -52,7 +52,13 @@ MONTHS = ["January", "February", "March", "April", "May", "June", "July",
           "August", "September", "October", "November", "December"]
 MONTHS_SHORT = [m[:3] for m in MONTHS]
 
-NAV_ITEMS = [("Today", "today"), ("Week", "week"), ("Tasks", "tasks"), ("Projects", "projects"), ("Notes", "notes")]
+NAV_ITEMS = [("Today", "today"), ("Week", "week"), ("Tasks", "tasks"), ("Projects", "projects"), ("Accounting", "accounting")]
+
+# Accounting page: cards with no month yet are listed last under this header.
+NO_MONTH = "No accounting month"
+_MONTH_INDEX = {m: i for i, m in enumerate(
+    ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], 1)}
+_MONTH_INDEX.update({"mai": 5, "okt": 10, "des": 12})     # Norwegian spellings that differ
 
 
 def _Y(y: float) -> float:
@@ -132,7 +138,7 @@ class SheetData:
 
 @dataclass
 class PageSpec:
-    kind: str                # today | week | tasks | asana | notes
+    kind: str                # today | week | tasks | projects | accounting
     n: int                   # 1-based page number
     week_offset: int = 0     # week pages: -1 / 0 / 1
     items: list = field(default_factory=list)
@@ -180,7 +186,10 @@ class Renderer:
             pages.append(PageSpec("projects", len(pages) + 1, items=ch, idx=i,
                                   total=len(proj_pages), last=i == len(proj_pages)))
 
-        pages.append(PageSpec("notes", len(pages) + 1))
+        acct_pages = self._accounting_pages()
+        for i, ch in enumerate(acct_pages, 1):
+            pages.append(PageSpec("accounting", len(pages) + 1, items=ch, idx=i,
+                                  total=len(acct_pages), last=i == len(acct_pages)))
         return pages
 
     def _project_pages(self) -> list[list[tuple[str, list]]]:
@@ -196,27 +205,52 @@ class Renderer:
                 by_section.setdefault(c.section, []).append(c)
             order = [s for s in self.d.project_sections if s in by_section]
             order += [s for s in by_section if s not in order]
-
-            pages: list[list[tuple[str, list]]] = []
-            page: list[tuple[str, list]] = []
-            used = 0
-            for name in order:
-                cards = by_section[name]
-                i = 0
-                while i < len(cards):
-                    room = self.PROJECT_ROWS - used - 1        # -1 for the header
-                    if room < 1:
-                        pages.append(page)
-                        page, used, room = [], 0, self.PROJECT_ROWS - 1
-                    take = cards[i:i + room]
-                    label = name if i == 0 else f"{name} (cont.)"
-                    page.append((label, take))
-                    used += len(take) + 1
-                    i += len(take)
-            if page:
-                pages.append(page)
-            self._proj_cache = pages or [[]]
+            self._proj_cache = self._chunk_sections(order, by_section)
         return self._proj_cache
+
+    def _accounting_pages(self) -> list[list[tuple[str, list]]]:
+        """The same cards grouped by their Accounting Month, earliest first.
+
+        Delivered projects are left out: they are history, and this page is
+        about what still has to land in the books. Cards with no month yet
+        come last under their own header so they are not lost, just parked.
+        """
+        if not hasattr(self, "_acct_cache"):
+            by_month: dict[str, list] = {}
+            for c in self.d.projects:
+                if _delivered(c):
+                    continue
+                by_month.setdefault(_month_label(c), []).append(c)
+            order = sorted(by_month, key=_month_key)
+            self._acct_cache = self._chunk_sections(order, by_month)
+        return self._acct_cache
+
+    def _chunk_sections(self, order: list[str], groups: dict[str, list]) -> list[list[tuple[str, list]]]:
+        """Split (header, cards) groups into page-sized chunks, in `order`.
+
+        A header plus its cards is kept together where it fits; a long group
+        spills to the next page under a "(cont.)" header rather than being
+        shrunk.
+        """
+        pages: list[list[tuple[str, list]]] = []
+        page: list[tuple[str, list]] = []
+        used = 0
+        for name in order:
+            cards = groups[name]
+            i = 0
+            while i < len(cards):
+                room = self.PROJECT_ROWS - used - 1        # -1 for the header
+                if room < 1:
+                    pages.append(page)
+                    page, used, room = [], 0, self.PROJECT_ROWS - 1
+                take = cards[i:i + room]
+                label = name if i == 0 else f"{name} (cont.)"
+                page.append((label, take))
+                used += len(take) + 1
+                i += len(take)
+        if page:
+            pages.append(page)
+        return pages or [[]]
 
     def first_page_of(self, kind: str) -> int:
         if kind == "week":       # nav goes to *this* week, not last week
@@ -686,6 +720,21 @@ class Renderer:
         ry = y + 44
         if page.idx == 1 and self.d.projects:
             ry = self._stage_band(y + 28)
+        self._card_sections(page, ry, self._project_bits)
+
+        if not page.items:
+            self.text(M, ry + 30, "No cards on the board.", F, 24, GREY)
+        self.footer(page)
+
+    def _project_bits(self, c) -> list[str]:
+        bits = [v for _, v in c.fields][:3]
+        if c.due:
+            bits.append(_due_label(c.due, self.d.today))
+        return bits
+
+    def _card_sections(self, page: PageSpec, ry: float, bits_of) -> float:
+        """Draw the page's (header, cards) groups from `ry` down; returns the
+        y after the last one. `bits_of(card)` gives the grey detail line."""
         for section, cards in page.items:
             sub = sum(c.budget or 0 for c in cards)
             self.rect(M, ry - 4, PAGE_W - 2 * M, 34, stroke=0, fill=Color(0.92, 0.92, 0.90))
@@ -701,9 +750,7 @@ class Renderer:
                 if budget:
                     self.text(PAGE_W - M, ry + 22, budget, FB, 21, align="right")
 
-                bits = [v for _, v in c.fields][:3]
-                if c.due:
-                    bits.append(_due_label(c.due, self.d.today))
+                bits = bits_of(c)
                 if bits:
                     self.text(M + 14, ry + 44, _fit("  ·  ".join(bits), F, 17,
                                                     PAGE_W - 2 * M - 30), F, 17, GREY)
@@ -713,10 +760,7 @@ class Renderer:
                 if ry > PAGE_H - 90:
                     break
             ry += 8
-
-        if not page.items:
-            self.text(M, ry + 30, "No cards on the board.", F, 24, GREY)
-        self.footer(page)
+        return ry
 
     def _stage_band(self, y: float) -> float:
         """Three totals across the top: what is won, what is committed, and what
@@ -732,38 +776,87 @@ class Renderer:
         cells = [("Active", totals["active"], counts["active"]),
                  ("Signed", totals["signed"], counts["signed"]),
                  ("Incoming", totals["incoming"], counts["incoming"])]
+        return self._band(y, cells, highlight=0)     # won work is the one to read first
+
+    def _band(self, y: float, cells: list[tuple[str, float, int]], highlight: int) -> float:
+        """Three boxes across the top -- label, kr total, count -- with a black
+        bar over the one to read first. Returns the y to continue drawing from."""
         w = (PAGE_W - 2 * M) / 3
         h = 96
         for i, (label, amount, n) in enumerate(cells):
             x = M + i * w
             self.rect(x, y, w, h, stroke=1.5)
-            if i == 0:      # won work is the one to read first
+            if i == highlight:
                 self.rect(x, y, w, 6, stroke=0, fill=black)
             self.text(x + 14, y + 30, label.upper(), F, 17, GREY)
             self.text(x + 14, y + 62, _kr(amount) if amount else "—", FB, 28)
             self.text(x + w - 14, y + 30, f"{n}", F, 17, GREY, align="right")
         return y + h + 26
 
-    def page_notes(self, page: PageSpec):
-        self.c.bookmarkPage("sec-notes")
-        self.nav("notes")
+    def page_accounting(self, page: PageSpec):
+        """The Projects board again, grouped by Accounting Month instead of
+        pipeline stage, earliest month first, without Delivered projects.
+
+        Read-only, like Projects: which month a project books in is decided in
+        Asana. The band on top splits the total into months already past (still
+        not delivered, so worth a look), this month, and everything after.
+        """
+        if page.idx == 1:
+            self.c.bookmarkPage("sec-accounting")
+        self.nav("accounting")
         y = CONTENT_TOP + 36
-        self.text(M, y, "Notes", FB, 36)
-        self.text(PAGE_W - M, y, f"transcribed to notes/{self.d.today.isoformat()}.md", F, 18, GREY, align="right")
-        top = y + 40
-        bottom = PAGE_H - 60
-        line_h = 80
-        yy = top + line_h
-        while yy <= bottom:
-            self.line(M, yy, PAGE_W - M, yy, 0.75, RULE)
-            yy += line_h
-        self.region("notes", "notes", page.n, M, top, PAGE_W - 2 * M, bottom - top, line_h)
+        title = "Accounting" + (f"  {page.idx}/{page.total}" if page.total > 1 else "")
+        self.text(M, y, title, FB, 36)
+        self.text(PAGE_W - M, y, "by accounting month  ·  delivered projects left out",
+                  F, 18, GREY, align="right")
+        self.line(M, y + 16, PAGE_W - M, y + 16, 1.5)
+
+        if not self.d.projects_status.ok:
+            self.unavailable(y + 50, "Project board", self.d.projects_status)
+            self.footer(page)
+            return
+
+        ry = y + 44
+        cards = [c for c in self.d.projects if not _delivered(c)]
+        if page.idx == 1 and cards:
+            ry = self._month_band(y + 28, cards)
+        self._card_sections(page, ry, self._accounting_bits)
+
+        if not page.items:
+            self.text(M, ry + 30, "Nothing on the board that is not delivered.", F, 24, GREY)
         self.footer(page)
 
-    # -- run ------------------------------------------------------------
+    def _accounting_bits(self, c) -> list[str]:
+        """Pipeline stage first (the grouping this page gave up), then the
+        fields that matter for the books."""
+        bits = [c.section]
+        for needles in (("stage",), ("invoic", "status"), ("client",)):
+            v = _field(c, *needles)
+            if v:
+                bits.append(v)
+        return bits
+
+    def _month_band(self, y: float, cards) -> float:
+        this = (self.d.today.year, self.d.today.month)
+        totals = {"earlier": 0.0, "this": 0.0, "later": 0.0}
+        counts = {"earlier": 0, "this": 0, "later": 0}
+        for c in cards:
+            k = _month_key(_month_label(c))
+            if k[0] == 0:
+                ym = (k[1], k[2])
+                bucket = "earlier" if ym < this else ("this" if ym == this else "later")
+            else:
+                bucket = "later"          # no month yet: not in the past, at least
+            totals[bucket] += c.budget or 0
+            counts[bucket] += 1
+        cells = [("Earlier months", totals["earlier"], counts["earlier"]),
+                 ("This month", totals["this"], counts["this"]),
+                 ("Later", totals["later"], counts["later"])]
+        return self._band(y, cells, highlight=1)
+
     def render(self) -> None:
         draw = {"today": self.page_today, "week": self.page_week, "tasks": self.page_tasks,
-                "projects": self.page_projects, "notes": self.page_notes}
+                "projects": self.page_projects, "accounting": self.page_accounting}
         for page in self.pages:
             draw[page.kind](page)
             self.c.showPage()
@@ -782,6 +875,40 @@ class Renderer:
 # section name so renaming "Active" to "Active projects" still lands right, and
 # anything unrecognised counts as pipeline rather than being dropped from the
 # totals -- an unnoticed rename should understate nothing.
+def _field(card, *needles: str) -> str:
+    """Value of the first custom field whose label contains every needle,
+    case-insensitively -- so a rename from "Accounting Month" to "Acc. month"
+    in Asana keeps working."""
+    for label, value in card.fields:
+        low = label.lower()
+        if all(n in low for n in needles):
+            return value
+    return ""
+
+
+def _delivered(card) -> bool:
+    return "delivered" in _field(card, "stage").lower()
+
+
+def _month_label(card) -> str:
+    return _field(card, "accounting", "month") or NO_MONTH
+
+
+def _month_key(label: str) -> tuple:
+    """Sort key for an Accounting Month value such as "June 2026" or "2026 aug":
+    real months first in calendar order, then anything unparseable
+    alphabetically, then the no-month bucket."""
+    if label == NO_MONTH:
+        return (2, 0, 0, "")
+    parts = label.replace(",", " ").replace("-", " ").split()
+    if len(parts) == 2:
+        for mon, yr in ((parts[0], parts[1]), (parts[1], parts[0])):
+            m = _MONTH_INDEX.get(mon.lower()[:3])
+            if m and yr.isdigit():
+                return (0, int(yr), m, "")
+    return (1, 0, 0, label.lower())
+
+
 def _stage(section: str) -> str:
     low = section.lower()
     if "active" in low:
