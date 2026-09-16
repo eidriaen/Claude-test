@@ -240,6 +240,11 @@ def ingest_today(cfg: Config, rm: Rmapi, store: TaskStore, asana, today: date,
         annotated = rm.download_annotated(doc, cfg.out_dir / "annotated")
         set_strip_dir(cfg.out_dir / "strips")
         marks = read_marks(annotated, layout, cfg.anthropic_api_key)
+    except NoMarksYet:
+        # Nothing written on it, so there is nothing to lose: replace in place
+        # rather than archiving an untouched copy every refresh.
+        log(cfg, "refreshing today's sheet — no marks on it yet")
+        return True
     except Exception as exc:  # noqa: BLE001 — never block the refresh
         log(cfg, f"warn: could not read today's sheet before replacing it: "
                  f"{type(exc).__name__}: {exc}")
@@ -519,7 +524,7 @@ def generate(cfg: Config, today: date) -> int:
 
     # 7. summary
     log(cfg, f"{today.isoformat()}  {report.summary()}  ·  "
-             f"{len(asana_tasks)} tasks · {len(projects)} projects · "
+             f"{len(asana_tasks)} tasks · {sum(not c.completed for c in projects)} projects · "
              f"{len(events)} events · {pdf.name}")
     return 0
 

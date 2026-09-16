@@ -180,7 +180,11 @@ class AsanaClient:
         return None
 
     def board(self, project_gid: str) -> list[ProjectCard]:
-        """Every incomplete card on the board, tagged with its section."""
+        """Every card on the board, tagged with its section.
+
+        Completed cards come too, flagged, because the Accounting page wants
+        delivered projects; the Projects page filters them out itself.
+        """
         params = {
             "limit": 100,
             "opt_fields": ("name,completed,due_on,memberships.section.name,"
@@ -195,8 +199,6 @@ class AsanaClient:
             r.raise_for_status()
             body = r.json()
             for t in body.get("data", []):
-                if t.get("completed"):
-                    continue
                 cards.append(self._card(t))
             nxt = (body.get("next_page") or {}).get("uri")
             url, params = (nxt, None) if nxt else (None, None)
@@ -234,6 +236,7 @@ class AsanaClient:
             budget=budget,
             fields=fields,
             due=date.fromisoformat(due) if due else None,
+            completed=bool(t.get("completed")),
         )
 
     def sections(self, project_gid: str) -> list[str]:
@@ -379,5 +382,6 @@ def _fixture_board(cfg: Config) -> list[ProjectCard]:
     raw = json.loads(path.read_text(encoding="utf-8"))
     return [ProjectCard(gid=c["gid"], name=c["name"], section=c["section"],
                         budget=c.get("budget"),
-                        fields=[tuple(f) for f in c.get("fields", [])])
+                        fields=[tuple(f) for f in c.get("fields", [])],
+                        completed=bool(c.get("completed", False)))
             for c in raw]

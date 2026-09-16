@@ -192,6 +192,11 @@ class Renderer:
                                   total=len(acct_pages), last=i == len(acct_pages)))
         return pages
 
+    @property
+    def pipeline(self) -> list:
+        """Cards still open in Asana -- what the Projects page shows."""
+        return [c for c in self.d.projects if not c.completed]
+
     def _project_pages(self) -> list[list[tuple[str, list]]]:
         """Group cards by board section, then split into page-sized chunks.
 
@@ -201,7 +206,7 @@ class Renderer:
         """
         if not hasattr(self, "_proj_cache"):
             by_section: dict[str, list] = {}
-            for c in self.d.projects:
+            for c in self.pipeline:
                 by_section.setdefault(c.section, []).append(c)
             order = [s for s in self.d.project_sections if s in by_section]
             order += [s for s in by_section if s not in order]
@@ -209,21 +214,31 @@ class Renderer:
         return self._proj_cache
 
     def _accounting_pages(self) -> list[list[tuple[str, list]]]:
-        """The same cards grouped by their Accounting Month, earliest first.
+        """Every card, delivered or not, grouped by Accounting Month from
+        January this year to December next year, earliest first.
 
-        Delivered projects are left out: they are history, and this page is
-        about what still has to land in the books. Cards with no month yet
-        come last under their own header so they are not lost, just parked.
+        Completed cards count too: the books do not care that a project is
+        off the pipeline. Cards with no month yet come last under their own
+        header so they are not lost, just parked.
         """
         if not hasattr(self, "_acct_cache"):
             by_month: dict[str, list] = {}
-            for c in self.d.projects:
-                if _delivered(c):
-                    continue
+            for c in self._accounting_cards():
                 by_month.setdefault(_month_label(c), []).append(c)
             order = sorted(by_month, key=_month_key)
             self._acct_cache = self._chunk_sections(order, by_month)
         return self._acct_cache
+
+    def _accounting_cards(self) -> list:
+        first = (self.d.today.year, 1)
+        last = (self.d.today.year + 1, 12)
+        out = []
+        for c in self.d.projects:
+            k = _month_key(_month_label(c))
+            if k[0] == 0 and not (first <= (k[1], k[2]) <= last):
+                continue            # a real month, but outside the window
+            out.append(c)           # in the window, or no usable month yet
+        return out
 
     def _chunk_sections(self, order: list[str], groups: dict[str, list]) -> list[list[tuple[str, list]]]:
         """Split (header, cards) groups into page-sized chunks, in `order`.
@@ -718,7 +733,7 @@ class Renderer:
         self.line(M, y + 16, PAGE_W - M, y + 16, 1.5)
 
         ry = y + 44
-        if page.idx == 1 and self.d.projects:
+        if page.idx == 1 and self.pipeline:
             ry = self._stage_band(y + 28)
         self._card_sections(page, ry, self._project_bits)
 
@@ -768,9 +783,9 @@ class Renderer:
 
         Returns the y to continue drawing from.
         """
-        totals = _stage_totals(self.d.projects)
+        totals = _stage_totals(self.pipeline)
         counts: dict[str, int] = {"active": 0, "signed": 0, "incoming": 0}
-        for c in self.d.projects:
+        for c in self.pipeline:
             counts[_stage(c.section)] += 1
 
         cells = [("Active", totals["active"], counts["active"]),
@@ -795,11 +810,12 @@ class Renderer:
 
     def page_accounting(self, page: PageSpec):
         """The Projects board again, grouped by Accounting Month instead of
-        pipeline stage, earliest month first, without Delivered projects.
+        pipeline stage, earliest month first, January this year to December
+        next year, delivered and completed projects included.
 
         Read-only, like Projects: which month a project books in is decided in
-        Asana. The band on top splits the total into months already past (still
-        not delivered, so worth a look), this month, and everything after.
+        Asana. The band on top gives last month, this month and everything
+        after; earlier months are on the page but not in the band.
         """
         if page.idx == 1:
             self.c.bookmarkPage("sec-accounting")
@@ -807,7 +823,8 @@ class Renderer:
         y = CONTENT_TOP + 36
         title = "Accounting" + (f"  {page.idx}/{page.total}" if page.total > 1 else "")
         self.text(M, y, title, FB, 36)
-        self.text(PAGE_W - M, y, "by accounting month  ·  delivered projects left out",
+        span = f"Jan {self.d.today.year} – Dec {self.d.today.year + 1}"
+        self.text(PAGE_W - M, y, f"by accounting month  ·  {span}  ·  delivered included",
                   F, 18, GREY, align="right")
         self.line(M, y + 16, PAGE_W - M, y + 16, 1.5)
 
@@ -817,13 +834,13 @@ class Renderer:
             return
 
         ry = y + 44
-        cards = [c for c in self.d.projects if not _delivered(c)]
+        cards = self._accounting_cards()
         if page.idx == 1 and cards:
             ry = self._month_band(y + 28, cards)
         self._card_sections(page, ry, self._accounting_bits)
 
         if not page.items:
-            self.text(M, ry + 30, "Nothing on the board that is not delivered.", F, 24, GREY)
+            self.text(M, ry + 30, "No cards with an accounting month in this window.", F, 24, GREY)
         self.footer(page)
 
     def _accounting_bits(self, c) -> list[str]:
@@ -837,19 +854,27 @@ class Renderer:
         return bits
 
     def _month_band(self, y: float, cards) -> float:
-        this = (self.d.today.year, self.d.today.month)
-        totals = {"earlier": 0.0, "this": 0.0, "later": 0.0}
-        counts = {"earlier": 0, "this": 0, "later": 0}
+        t = self.d.today
+        this = (t.year, t.month)
+        prev = (t.year, t.month - 1) if t.month > 1 else (t.year - 1, 12)
+        totals = {"prev": 0.0, "this": 0.0, "later": 0.0}
+        counts = {"prev": 0, "this": 0, "later": 0}
         for c in cards:
             k = _month_key(_month_label(c))
-            if k[0] == 0:
-                ym = (k[1], k[2])
-                bucket = "earlier" if ym < this else ("this" if ym == this else "later")
+            if k[0] != 0:
+                continue                  # no usable month: listed, not summed
+            ym = (k[1], k[2])
+            if ym == prev:
+                bucket = "prev"
+            elif ym == this:
+                bucket = "this"
+            elif ym > this:
+                bucket = "later"
             else:
-                bucket = "later"          # no month yet: not in the past, at least
+                continue                  # older months are on the page, not in the band
             totals[bucket] += c.budget or 0
             counts[bucket] += 1
-        cells = [("Earlier months", totals["earlier"], counts["earlier"]),
+        cells = [(MONTHS_SHORT[prev[1] - 1] + " (previous month)", totals["prev"], counts["prev"]),
                  ("This month", totals["this"], counts["this"]),
                  ("Later", totals["later"], counts["later"])]
         return self._band(y, cells, highlight=1)
@@ -884,10 +909,6 @@ def _field(card, *needles: str) -> str:
         if all(n in low for n in needles):
             return value
     return ""
-
-
-def _delivered(card) -> bool:
-    return "delivered" in _field(card, "stage").lower()
 
 
 def _month_label(card) -> str:

@@ -512,7 +512,7 @@ A failed push exits non-zero, so a broken run shows up as **Last Run Result**
 | 2–16 | **Week** — last week through thirteen ahead, with ‹ Prev / Next › and a This week jump |
 | 5 | **Tasks** — Asana tasks assigned to you, High priority first, with H/M/L pickers and the New tasks box. Cards on the pipeline board are excluded — they appear on Projects |
 | 6 | **Projects** — the pipeline board by section, with Active / Signed / Incoming totals |
-| 7 | **Accounting** — the same board grouped by *Accounting Month*, earliest first, Delivered projects left out, with Earlier / This month / Later totals |
+| 7 | **Accounting** — the same board grouped by *Accounting Month*, January this year to December next, delivered and completed projects included, with Previous month / This month / Later totals |
 
 One sheet per day. Re-running on the same day refreshes that one document —
 your ticks are read off it first, so nothing written is lost. When the date

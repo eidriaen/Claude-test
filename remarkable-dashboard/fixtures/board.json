@@ -169,7 +169,8 @@
         "Status",
         "Tilbud sendt 5. sep"
       ]
-    ]
+    ],
+    "completed": true
   },
   {
     "gid": "p-09",
@@ -229,6 +230,7 @@
         "Status",
         "Korrektur"
       ]
-    ]
+    ],
+    "completed": true
   }
 ]

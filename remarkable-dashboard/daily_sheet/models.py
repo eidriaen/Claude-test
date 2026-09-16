@@ -90,6 +90,7 @@ class ProjectCard:
     budget: Optional[float] = None
     fields: list[tuple[str, str]] = field(default_factory=list)
     due: Optional[date] = None
+    completed: bool = False      # done in Asana; off the pipeline, still in the books
 
     def budget_str(self) -> str:
         """Norwegian thousands grouping: 1 250 000 kr."""
