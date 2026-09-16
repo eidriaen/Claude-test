@@ -28,7 +28,7 @@ param(
     [string]$Branch = 'ReMarkable-dashboard',
     [string]$Repo = 'https://github.com/eidriaen/Claude-test.git',
     [string]$At = '08:00',
-    [int]$SyncEvery = 5,
+    [int]$SyncEvery = 15,
     [int]$Port = 8080,
     [string]$EnvFrom = '',
     [string]$BatDir = '',

@@ -263,7 +263,7 @@ Roughly ten minutes later the machine has:
 | **Git + the project** | cloned to `C:\Claude-test`, on this branch |
 | **rmapi** | the right build for the architecture, in `C:\tools` |
 | **Tailscale** | installed, waiting for `tailscale up` |
-| **Scheduled tasks** | one task every 5 min: sheet from 08:00, then ticks read into Asana; phone server at logon |
+| **Scheduled tasks** | one task every 15 min: sheet from 08:00, then ticks read into Asana; phone server at logon |
 | **SSH and Remote Desktop** | on, so it never needs a keyboard again |
 | **Claude Code** | with Node, so changes get made *on* the machine over SSH |
 | **`.env`** | created from the template with a fixed `WEB_TOKEN` |
@@ -481,7 +481,7 @@ Useful flags:
 ```
 
 That registers one task called **reMarkable Daily Sheet** which calls
-`run.ps1 -Auto` every five minutes, all day. Each tick decides for itself:
+`run.ps1 -Auto` every fifteen minutes, all day. Each tick decides for itself:
 before 08:00 it does nothing; from 08:00 it generates and pushes today's sheet,
 retrying on the next tick if the push failed; and once the sheet is up (a
 marker file `out/pushed-<date>` records that) every tick reads the ticks off it

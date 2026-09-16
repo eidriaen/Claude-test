@@ -25,7 +25,7 @@
 #>
 param(
     [string]$At = '08:00',
-    [int]$Every = 5,
+    [int]$Every = 15,
     [int]$SyncEvery = 0,          # old name for -Every, kept so setup.ps1 still works
     [int]$Port = 8080,
     [switch]$Server,
