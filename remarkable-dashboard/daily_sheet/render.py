@@ -226,7 +226,23 @@ class Renderer:
             for c in self._accounting_cards():
                 by_month.setdefault(_month_label(c), []).append(c)
             order = sorted(by_month, key=_month_key)
-            self._acct_cache = self._chunk_sections(order, by_month)
+            # A new year always starts a new page: the year boundary is where
+            # the books close, so its months should not trail off the bottom
+            # of last year's page. Cards with no usable month ride along with
+            # the final year rather than getting a page of their own.
+            years: list[list[str]] = []
+            for label in order:
+                k = _month_key(label)
+                if k[0] == 0 and (not years or _month_key(years[-1][0])[1] != k[1]):
+                    years.append([label])
+                elif years:
+                    years[-1].append(label)
+                else:
+                    years.append([label])
+            pages: list[list[tuple[str, list]]] = []
+            for labels in years:
+                pages += [pg for pg in self._chunk_sections(labels, by_month) if pg]
+            self._acct_cache = pages or [[]]
         return self._acct_cache
 
     def _accounting_cards(self) -> list:
