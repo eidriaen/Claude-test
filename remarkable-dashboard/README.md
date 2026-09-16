@@ -572,3 +572,24 @@ tablet.
 
 Room availability (no data path without Graph or IT approval), intra-day
 refresh, editing task text by pen, writing to the work calendar. See SCOPE §7–8.
+
+## Surviving reboots without a sign-in
+
+Since 2026-09-16 the scheduled tasks run as **S4U** tasks ("run whether user is
+logged on or not", no password stored). A Windows Update reboot that leaves the
+PC at the PIN screen no longer stops the sheet: this is what lost the sheet on
+2026-09-15. Tasks after `install-task.ps1 -Server` and `ensure-claude.ps1 -Install`:
+
+| Task | When | What |
+|---|---|---|
+| reMarkable Daily Sheet | every 15 min | `run.ps1 -Auto`: sheet from 08:00, then sync ticks |
+| reMarkable Sheet Server | at startup | `serve.py` on :8080 (the phone page) |
+| Claude remote control | every 5 min | headless `claude remote-control --name Mini-server`; the same remote chat is reattached after every reboot (id kept in `outemote-session.txt`); visible in claude.ai/code and the mobile app |
+emote-session.txt`); visible in claude.ai/code and the mobile app |
+| reMarkable Boot Check | 3 min after boot | `boot-check.ps1`: writes `outoot-report-*.txt` and a `boot-check:` line in `runs.log` |
+
+Only things that need a desktop (OneDrive, a visible window) still wait for a
+sign-in. To make the sign-in itself automatic, run `C:	ools\Autologon64.exe`
+once and enter the Microsoft-account password; Windows stores it encrypted.
+`install-task.ps1 -Interactive` restores the old sign-in-only behaviour.
+To open a visible window with the original development chat: `.\ensure-claude.ps1 -Window`.

@@ -29,6 +29,7 @@ param(
     [int]$SyncEvery = 0,          # old name for -Every, kept so setup.ps1 still works
     [int]$Port = 8080,
     [switch]$Server,
+    [switch]$Interactive,         # old behaviour: run only while signed in
     [switch]$Remove
 )
 
@@ -36,12 +37,14 @@ $ErrorActionPreference = 'Stop'
 $taskName   = 'reMarkable Daily Sheet'
 $legacySync = 'reMarkable Sync'
 $serverName = 'reMarkable Sheet Server'
+$checkName  = 'reMarkable Boot Check'
 $runner     = Join-Path $PSScriptRoot 'run.ps1'
+$checker    = Join-Path $PSScriptRoot 'boot-check.ps1'
 
 if ($SyncEvery -gt 0) { $Every = $SyncEvery }
 
 if ($Remove) {
-    foreach ($n in @($taskName, $legacySync, $serverName)) {
+    foreach ($n in @($taskName, $legacySync, $serverName, $checkName)) {
         if (Get-ScheduledTask -TaskName $n -ErrorAction SilentlyContinue) {
             Unregister-ScheduledTask -TaskName $n -Confirm:$false
             Write-Host "Removed scheduled task '$n'."
@@ -76,12 +79,24 @@ $settings = New-ScheduledTaskSettingsSet `
     -MultipleInstances IgnoreNew `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 30)
 
+# S4U = "Run whether user is logged on or not" with "Do not store password".
+# The task then survives a Windows Update reboot that leaves the PC at the
+# PIN screen (which is exactly what lost the sheet on 2026-09-15). rmapi, the
+# calendar and Asana only need files in the profile and internet access, and a
+# test tick under S4U ran clean. -Interactive restores the old behaviour.
+$principal = if ($Interactive) {
+    New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
+} else {
+    New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType S4U -RunLevel Limited
+}
+
 Register-ScheduledTask `
     -TaskName    $taskName `
     -Description "Every $Every min: pushes the daily sheet from $At, then reads its ticks into Asana." `
     -Action      $action `
     -Trigger     $trigger `
     -Settings    $settings `
+    -Principal   $principal `
     -Force | Out-Null
 
 Write-Host "Scheduled '$taskName' every $Every minutes (sheet generated from $At)."
@@ -96,10 +111,19 @@ if ($Server) {
     # long-running rather than scheduled, so no repetition trigger -- one
     # instance, kept alive.
     # Windows PowerShell 5.1 is what ships on these machines, so no ?. here.
+    # The real interpreter, not the Microsoft Store alias in WindowsApps: the
+    # alias is a per-session reparse point and is not reliable from a task
+    # that starts before anyone signs in.
     $pyw = $null
-    foreach ($exe in @('pythonw.exe', 'pyw.exe')) {
-        $cmd = Get-Command $exe -ErrorAction SilentlyContinue
-        if ($cmd) { $pyw = $cmd.Source; break }
+    if (Get-Command py -ErrorAction SilentlyContinue) {
+        $exe = (& py -3 -c "import sys, os; print(os.path.join(os.path.dirname(sys.executable), 'pythonw.exe'))" 2>$null)
+        if ($exe -and (Test-Path -LiteralPath $exe.Trim())) { $pyw = $exe.Trim() }
+    }
+    if (-not $pyw) {
+        foreach ($exe in @('pythonw.exe', 'pyw.exe')) {
+            $cmd = Get-Command $exe -ErrorAction SilentlyContinue
+            if ($cmd) { $pyw = $cmd.Source; break }
+        }
     }
     if (-not $pyw) {
         Write-Warning "No pythonw.exe on PATH -- skipping '$serverName'. Start it by hand with 'Daily Sheet Server.bat'."
@@ -118,10 +142,14 @@ if ($Server) {
             -Argument "`"$(Join-Path $PSScriptRoot 'serve.py')`" --port $Port --quiet" `
             -WorkingDirectory $PSScriptRoot
 
-        # Scoped to this user: an any-user logon trigger needs an elevated
-        # shell to register, and the task must run as the user rmapi is
-        # paired with anyway.
-        $serverTrigger = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+        # At startup rather than at logon, so the phone page is up even while
+        # the PC sits at the PIN screen after an unattended reboot. Runs as
+        # this user (S4U, see above) because that is who rmapi is paired with.
+        $serverTrigger = if ($Interactive) {
+            New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+        } else {
+            New-ScheduledTaskTrigger -AtStartup
+        }
 
         $serverSettings = New-ScheduledTaskSettingsSet `
             -DontStopIfGoingOnBatteries `
@@ -136,10 +164,26 @@ if ($Server) {
             -Action      $serverAction `
             -Trigger     $serverTrigger `
             -Settings    $serverSettings `
+            -Principal   $principal `
             -Force | Out-Null
 
-        Write-Host "Scheduled '$serverName' at logon on port $Port."
+        Write-Host "Scheduled '$serverName' at $(if ($Interactive) { 'logon' } else { 'startup' }) on port $Port."
     }
+}
+
+if (Test-Path -LiteralPath $checker) {
+    # Three minutes after every boot: is everything back? Writes
+    # out\boot-report-*.txt and one "boot-check:" line in runs.log.
+    $checkAction = New-ScheduledTaskAction -Execute 'powershell.exe' `
+        -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$checker`"" `
+        -WorkingDirectory $PSScriptRoot
+    $checkSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries `
+        -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
+    Register-ScheduledTask -TaskName $checkName -Action $checkAction -Trigger (New-ScheduledTaskTrigger -AtStartup) `
+        -Settings $checkSettings -Principal $principal `
+        -Description 'After a reboot, checks tasks, phone page, Claude remote control, Tailscale, SSH and RDP; writes out\boot-report-*.txt.' `
+        -Force | Out-Null
+    Write-Host "Scheduled '$checkName' at startup."
 }
 
 Write-Host ''
@@ -148,5 +192,10 @@ Write-Host "  Get-ScheduledTask -TaskName '$taskName' | Get-ScheduledTaskInfo"
 Write-Host "  Start-ScheduledTask -TaskName '$taskName'    # run a tick now"
 Write-Host "  Get-Content runs.log -Tail 20"
 Write-Host ''
-Write-Host 'Note: runs only while you are logged on. If the machine is off at'
-Write-Host "$At the sheet goes up on the first tick after it is back."
+if ($Interactive) {
+    Write-Host 'Note: runs only while you are logged on. If the machine is off at'
+    Write-Host "$At the sheet goes up on the first tick after it is back."
+} else {
+    Write-Host 'Runs whether or not anyone is signed in (no password stored). If the'
+    Write-Host "machine is off at $At the sheet goes up on the first tick after it is back."
+}
