@@ -25,7 +25,7 @@ from .models import SectionStatus, TrelloCard
 
 API = "https://api.trello.com/1"
 
-CARD_FIELDS = "name,due,dueComplete,idList,idMembers,labels,shortUrl,closed"
+CARD_FIELDS = "name,due,dueComplete,idList,idMembers,labels,shortUrl,closed,pos"
 
 
 def _norm(name: str) -> str:
@@ -231,9 +231,12 @@ class TrelloClient:
                         if l.get("name") or l.get("color")],
                 url=c.get("shortUrl", ""),
                 list_key=key_of_list.get(c["idList"], ""),
+                pos=float(c.get("pos") or 0),
             ))
+        # Within a list: dated cards first, then the order the board shows them
+        # in -- the order someone chose by dragging, which is worth keeping.
         out.sort(key=lambda k: (order.get(_list_id_of(k, lists), 99),
-                                k.due is None, k.due or date.max, k.name.lower()))
+                                k.due is None, k.due or date.max, k.pos))
         return out
 
     def shown_list_names(self) -> list[str]:

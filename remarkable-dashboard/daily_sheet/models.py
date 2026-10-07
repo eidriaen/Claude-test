@@ -115,6 +115,7 @@ class TrelloCard:
     labels: list[str] = field(default_factory=list)
     url: str = ""
     list_key: str = ""           # "this" | "next" | "month" when it sits in one of the move targets
+    pos: float = 0.0             # Trello's position within its list
 
     @property
     def rid(self) -> str:
