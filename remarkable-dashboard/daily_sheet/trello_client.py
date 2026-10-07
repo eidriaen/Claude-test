@@ -174,6 +174,24 @@ class TrelloClient:
                 out[key] = found
         return out
 
+    def me_id(self) -> str:
+        """The token owner's member id -- the person holding the pen."""
+        if self.cfg.use_fixtures:
+            members = self._fixture()["members"]
+            return members[0]["id"] if members else ""
+        if not hasattr(self, "_me"):
+            self._me = self._get("/members/me", fields="id")["id"]
+        return self._me
+
+    def _mine_or_shared(self, cards: list[TrelloCard]) -> list[TrelloCard]:
+        """With TRELLO_HIDE_OTHERS: keep cards that are unassigned or have me
+        on them. A card that is someone else's alone is their business, and
+        on a shared board that is most of the other person's list."""
+        if not self.cfg.trello_hide_others:
+            return cards
+        me = self.me_id()
+        return [c for c in cards if not c.member_ids or me in c.member_ids]
+
     def board_members(self) -> list[dict]:
         """Board members as {id, name, initials}, the token's owner first.
 
@@ -185,7 +203,7 @@ class TrelloClient:
             return self._fixture()["members"]
         if not self._members:
             bid, _ = self.board()
-            me = self._get("/members/me", fields="id")["id"]
+            me = self.me_id()
             raw = self._get(f"/boards/{bid}/members", fields="fullName,initials,username")
             members = []
             for m in raw:
@@ -202,7 +220,7 @@ class TrelloClient:
     def open_cards(self) -> list[TrelloCard]:
         """Every card not in the Done list, in list order then due date."""
         if self.cfg.use_fixtures:
-            return self._fixture_cards()
+            return self._mine_or_shared(self._fixture_cards())
         if not (self.cfg.trello_key and self.cfg.trello_token):
             raise RuntimeError("TRELLO_KEY / TRELLO_TOKEN are not set")
 
@@ -237,7 +255,7 @@ class TrelloClient:
         # in -- the order someone chose by dragging, which is worth keeping.
         out.sort(key=lambda k: (order.get(_list_id_of(k, lists), 99),
                                 k.due is None, k.due or date.max, k.pos))
-        return out
+        return self._mine_or_shared(out)
 
     def shown_list_names(self) -> list[str]:
         return [_clean(name) for _, name in self.shown_lists()]

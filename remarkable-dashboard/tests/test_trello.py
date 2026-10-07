@@ -263,6 +263,7 @@ class _Client(TrelloClient):
         # of their own, not whichever one is configured here.
         cfg.trello_board, cfg.trello_lists, cfg.trello_inbox_list = "", [], ""
         cfg.trello_done_list, cfg.trello_names = "Done", {}
+        cfg.trello_hide_others = False
         cfg.trello_move_lists = {"this": "To-do this week", "next": "To-do next week",
                                  "month": "To-do next month"}
         super().__init__(cfg, TODAY)
@@ -339,6 +340,19 @@ def test_trello_lists_picks_and_orders_the_lists_and_strips_emoji():
     assert c.inbox_list() == ("L0", "\U0001f4a1Ideas/Backlog"), "inbox default is still the first list"
     c.cfg.trello_inbox_list = "to-do this week"
     assert c.inbox_list() == ("L2", "\U0001f4c5 To-do this week")
+
+
+def test_hide_others_keeps_mine_shared_and_unassigned_cards():
+    cards = [{"id": "c1", "name": "Hers", "idList": "L1", "idMembers": ["m2"], "labels": []},
+             {"id": "c2", "name": "Ours", "idList": "L1", "idMembers": ["m1", "m2"], "labels": []},
+             {"id": "c3", "name": "Mine", "idList": "L1", "idMembers": ["m1"], "labels": []},
+             {"id": "c4", "name": "Nobody's", "idList": "L1", "idMembers": [], "labels": []}]
+    members = [{"id": "m1", "fullName": "Arcadie", "initials": "A"},
+               {"id": "m2", "fullName": "Siri Hegna Berge", "initials": "SB"}]
+    c = _Client(_BOARDS, _LISTS, cards, members=members)
+    assert [k.name for k in c.open_cards()] == ["Hers", "Ours", "Mine", "Nobody's"]
+    c.cfg.trello_hide_others = True
+    assert [k.name for k in c.open_cards()] == ["Ours", "Mine", "Nobody's"]
 
 
 def test_without_a_done_list_ticks_archive_the_card():

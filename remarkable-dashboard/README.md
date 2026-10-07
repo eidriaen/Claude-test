@@ -171,6 +171,10 @@ TRELLO_INBOX_LIST=To-do this week
 Emoji and punctuation in the real list names are ignored when matching, so
 `📅 To-do this week` on the board is `To-do this week` here.
 
+`TRELLO_HIDE_OTHERS=1` leaves off cards that are assigned only to other
+people. Yours, shared ones and unassigned ones stay — on a shared board the
+other person's own list is theirs to keep.
+
 ### Connecting it
 
 Trello wants an API key and a token, both tied to your own Trello account:

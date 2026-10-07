@@ -30,6 +30,7 @@ class Config:
     trello_lists: list[str]          # lists to show, in order; empty = every list
     trello_move_lists: dict[str, str]   # picker key -> list name a tick moves the card to
     trello_names: dict[str, str]        # Trello display name -> name to print
+    trello_hide_others: bool            # drop cards assigned only to other people
     rmapi_bin: str
     remarkable_folder: str
     remarkable_archive: str
@@ -63,6 +64,7 @@ def load_config(use_fixtures: bool = False, dry_run: bool = False) -> Config:
         trello_done_list=os.getenv("TRELLO_DONE_LIST", "Done").strip() or "Done",
         trello_inbox_list=os.getenv("TRELLO_INBOX_LIST", "").strip(),
         trello_lists=[x.strip() for x in os.getenv("TRELLO_LISTS", "").split(",") if x.strip()],
+        trello_hide_others=os.getenv("TRELLO_HIDE_OTHERS", "").strip().lower() in ("1", "true", "yes"),
         trello_names=dict(
             (a.strip().lower(), b.strip())
             for a, _, b in (x.partition(":") for x in os.getenv("TRELLO_NAMES", "").split(","))
