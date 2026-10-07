@@ -188,8 +188,11 @@ Then:
 
 ```powershell
 py -m daily_sheet doctor      # "Trello  ok  <you> · board 'Hjemme' · 4 open card(s) · done list: Done · new cards go to: To do"
+py -m daily_sheet trello      # the lists as the Personal page sees them
 py -m daily_sheet generate --dry-run
 ```
+
+The phone page has the same as a **Check Trello board** button.
 
 The token can read and write every board the account sees, so treat it like
 the Asana token: it lives in `.env` and nowhere else. Without the key and token

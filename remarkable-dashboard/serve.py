@@ -52,12 +52,13 @@ class Action:
 ACTIONS: dict[str, Action] = {
     "generate": Action(
         "Sync + Generate Daily", ["generate"],
-        "Reads your ticks, completes them in Asana, rebuilds today's sheet "
-        "without them, pushes it back",
+        "Reads your ticks, completes them in Asana and Trello, rebuilds "
+        "today's sheet without them, pushes it back",
     ),
     "sync": Action(
         "Sync only", ["sync"],
-        "Pushes ticks to Asana without touching the sheet",
+        "Pushes ticks, moves and assignments to Asana and Trello without "
+        "touching the sheet",
     ),
     "tablet": Action(
         "What's on the tablet", ["tablet"],
@@ -66,6 +67,10 @@ ACTIONS: dict[str, Action] = {
     "board": Action(
         "Check Asana board", ["board"],
         "Shows the sections and fields the Projects page reads",
+    ),
+    "trello": Action(
+        "Check Trello board", ["trello"],
+        "Shows the lists the Personal page reads, and where ticks and new cards go",
     ),
     "doctor": Action(
         "Check connections", ["doctor"],
@@ -719,12 +724,31 @@ document.addEventListener('visibilitychange', () => {
 """.replace("__BUTTONS__", _buttons_html())
 
 
+class _DualStackServer(ThreadingHTTPServer):
+    address_family = socket.AF_INET6
+
+    def server_bind(self) -> None:
+        try:
+            self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        except (OSError, AttributeError):
+            pass    # no IPv6 on this box: the v4 half still comes up
+        super().server_bind()
+
+
 def serve(host: str, port: int, token: str, quiet: bool = False,
           generated: bool = False) -> ThreadingHTTPServer:
     Handler.token = token
     Handler.token_source = "generated" if generated else "env"
     Handler.started = datetime.now().strftime("%H:%M")
-    httpd = ThreadingHTTPServer((host, port), Handler)
+    if host in ("0.0.0.0", ""):
+        # Bind both families. Tailscale's MagicDNS hands the phone an IPv4 and
+        # an IPv6 address for this machine, and iOS tries IPv6 first; an
+        # IPv4-only socket answers that with "connection refused", which
+        # Safari reports as "can't connect to the server" -- while the plain
+        # IPv4 address in the same bookmark works. One socket for both ends it.
+        httpd = _DualStackServer(("::", port), Handler)
+    else:
+        httpd = ThreadingHTTPServer((host, port), Handler)
     httpd.quiet = quiet                                    # type: ignore[attr-defined]
     httpd.daemon_threads = True
     return httpd

@@ -347,6 +347,48 @@ def ingest_today(cfg: Config, rm: Rmapi, store: TaskStore, asana, today: date,
     return True
 
 
+# --- trello: what the Personal page will be built from -----------------------
+def inspect_trello(cfg: Config) -> int:
+    """Print the board as the Personal page sees it. Nothing is written."""
+    from .trello_client import TrelloClient, _clean
+    if not (cfg.trello_key and cfg.trello_token):
+        print("TRELLO_KEY / TRELLO_TOKEN are not set — see README: Personal tasks from Trello")
+        return 1
+    client = TrelloClient(cfg, date.today())
+    try:
+        bid, bname = client.board()
+    except Exception as exc:  # noqa: BLE001
+        print(f"Trello: {type(exc).__name__}: {exc}")
+        return 1
+    cards = client.open_cards()
+    shown = {lid for lid, _ in client.shown_lists()}
+    done, inbox = client.done_list(), client.inbox_list()
+    targets = {lid: key for key, (lid, _n) in client.move_targets().items()}
+    per_list: dict[str, int] = {}
+    for c in cards:
+        per_list[c.list_name] = per_list.get(c.list_name, 0) + 1
+
+    print(f"Board: {bname}")
+    print(f"Members: {', '.join(m['name'] for m in client.board_members())}")
+    print("Lists (* = on the Personal page):")
+    for lid, name in client.lists():
+        tags = []
+        if lid in targets:
+            tags.append({"this": "TW", "next": "NW", "month": "NM"}[targets[lid]])
+        if done and lid == done[0]:
+            tags.append("done")
+        if inbox and lid == inbox[0]:
+            tags.append("new cards land here")
+        suffix = ("   [" + ", ".join(tags) + "]") if tags else ""
+        if lid in shown:
+            print(f"  * {name:32} {per_list.get(_clean(name), 0):3} open{suffix}")
+        else:
+            print(f"    {name:32}  not on the page{suffix}")
+    print(f"{len(cards)} card(s) on the Personal page · ticks "
+          f"{'move to ' + done[1] if done else 'archive the card (no Done list)'}")
+    return 0
+
+
 # --- board: what the Projects page will be built from ------------------------
 def inspect_board(cfg: Config, name: str) -> int:
     """Print the board's sections, custom fields, and a sample card.
@@ -709,6 +751,7 @@ def main(argv: list[str] | None = None) -> int:
     b.add_argument("--name", help="board name (default: ASANA_BOARD from .env)")
 
     sub.add_parser("tablet", help="list the sheets on the tablet")
+    sub.add_parser("trello", help="show the Trello board the Personal page is built from")
     sub.add_parser("doctor", help="check every connection and report what's broken")
 
     args = p.parse_args(argv)
@@ -722,6 +765,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "tablet":
         return tablet(load_config())
+
+    if args.cmd == "trello":
+        return inspect_trello(load_config())
 
     if args.cmd == "board":
         cfg = load_config()
