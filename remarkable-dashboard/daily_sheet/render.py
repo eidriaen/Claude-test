@@ -142,6 +142,7 @@ class SheetData:
     trello_lists: list[str] = field(default_factory=list)     # list names, board order
     trello_status: SectionStatus = field(default_factory=SectionStatus)
     trello_members: list = field(default_factory=list)        # {id, name, initials}, me first
+    trello_inbox: str = ""                                    # list an unmarked new line lands in
 
 
 @dataclass
@@ -877,7 +878,8 @@ class Renderer:
         members = self._member_options()
 
         self.text(M, top - 12, "New personal tasks", FB, 26)
-        self.text(M + 290, top - 12, "one per line  ·  goes to Trello", F, 17, GREY)
+        where = f"unmarked lands in {self.d.trello_inbox}" if self.d.trello_inbox else "goes to Trello"
+        self.text(M + 290, top - 12, _fit(f"one per line  ·  {where}", F, 17, move_x - M - 310), F, 17, GREY)
         self.pick_header(move_x, top - 12, MOVES)
         self.pick_header(mem_x, top - 12, members)
         self.rect(M, top, PAGE_W - 2 * M, box_h, stroke=2)

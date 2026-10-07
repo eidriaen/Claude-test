@@ -27,7 +27,7 @@ from .readback import Marks, read_marks, set_strip_dir
 from .remarkable import NoMarksYet, Rmapi, RmapiError
 from .render import SheetData, render_sheet
 from .tasks import TaskStore, parse_pen_line
-from .trello_client import load_trello
+from .trello_client import _clean as _clean_list_name, load_trello
 
 
 def log(cfg: Config, msg: str) -> None:
@@ -627,10 +627,12 @@ def generate(cfg: Config, today: date) -> int:
         # new sheet should show it, so read it again.
         trello_cards, trello_lists, trello_status, trello = load_trello(cfg, today)
         trello_cards = [c for c in trello_cards if c.rid not in done_cards]
-    trello_members = []
+    trello_members, trello_inbox = [], ""
     if trello is not None and trello_status.ok:
         try:
             trello_members = trello.board_members()
+            inbox = trello.inbox_list()
+            trello_inbox = _clean_list_name(inbox[1]) if inbox else ""
         except Exception as exc:  # noqa: BLE001
             log(cfg, f"warn: trello members unavailable — {exc}")
 
@@ -651,6 +653,7 @@ def generate(cfg: Config, today: date) -> int:
         trello_lists=trello_lists,
         trello_status=trello_status,
         trello_members=trello_members,
+        trello_inbox=trello_inbox,
     )
     pdf, layout = render_sheet(data, cfg.out_dir)
     # Keep the layout under a dated name so tomorrow's run can find it -- but
