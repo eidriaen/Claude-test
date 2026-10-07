@@ -163,6 +163,33 @@ def check_asana(cfg: Config, rep: Report) -> None:
     rep.add(OK, "Asana", f"{me.get('name')} · {len(tasks)} open task(s) · workspaces: {ws}")
 
 
+def check_trello(cfg: Config, rep: Report) -> None:
+    if not (cfg.trello_key and cfg.trello_token):
+        rep.add(WARN, "Trello", "TRELLO_KEY / TRELLO_TOKEN not set",
+                "Personal page will render 'unavailable'. See README: Personal tasks from Trello")
+        return
+    from .trello_client import TrelloClient
+    client = TrelloClient(cfg, date.today())
+    try:
+        me = client._get("/members/me", fields="fullName,username")
+    except Exception as exc:  # noqa: BLE001
+        rep.add(FAIL, "Trello", f"{type(exc).__name__}: {exc}",
+                "Check TRELLO_KEY and TRELLO_TOKEN. See README: Personal tasks from Trello")
+        return
+    try:
+        _bid, bname = client.board()
+        cards = client.open_cards()
+    except Exception as exc:  # noqa: BLE001
+        rep.add(WARN, "Trello", f"signed in as {me.get('fullName')}, but: {exc}",
+                "Set TRELLO_BOARD in .env to the board's exact name")
+        return
+    done = client.done_list()
+    inbox = client.inbox_list()
+    rep.add(OK, "Trello", f"{me.get('fullName')} · board {bname!r} · {len(cards)} open card(s) · "
+            f"done list: {done[1] if done else 'none (ticks archive the card)'} · "
+            f"new cards go to: {inbox[1] if inbox else 'nowhere!'}")
+
+
 def check_anthropic(cfg: Config, rep: Report) -> None:
     if not cfg.anthropic_api_key:
         return
@@ -252,6 +279,7 @@ def doctor(cfg: Config) -> int:
     sheets = check_tablet(cfg, rm, rep) if rmapi_ok else []
     check_calendar(cfg, rep)
     check_asana(cfg, rep)
+    check_trello(cfg, rep)
     check_anthropic(cfg, rep)
     check_readback(cfg, rm, rmapi_ok, sheets, rep)
     check_schedule(rep)

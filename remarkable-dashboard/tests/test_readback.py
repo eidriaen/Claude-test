@@ -235,3 +235,20 @@ def test_the_week_pages_cover_a_quarter():
     from daily_sheet.render import WEEK_OFFSETS
     assert WEEK_OFFSETS[0] == -1, "last week stays reachable"
     assert WEEK_OFFSETS[-1] >= 13, "and at least three months ahead"
+
+
+def test_read_marks_refuses_a_pdf_with_a_different_page_count(tmp_path):
+    """A layout written for one sheet must never be measured against another:
+    printed text on the wrong page reads as ink, and every box looks ticked."""
+    import json
+    import pytest
+    from PIL import Image
+    from daily_sheet.readback import LayoutMismatch, read_marks
+
+    pdf = tmp_path / "two-pages.pdf"
+    pages = [Image.new("RGB", (100, 100), "white") for _ in range(2)]
+    pages[0].save(pdf, save_all=True, append_images=pages[1:], resolution=72.0)
+    layout = tmp_path / "layout.json"
+    layout.write_text(json.dumps({"page_size": [100, 100], "pages": 3, "regions": []}))
+    with pytest.raises(LayoutMismatch):
+        read_marks(pdf, layout, api_key="")

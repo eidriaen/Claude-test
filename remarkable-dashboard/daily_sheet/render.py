@@ -32,6 +32,7 @@ BOX = 44               # checkbox / priority box side
 PBOX = 38              # selector box side (>= 44 tap target once its gap counts)
 PRIO = ("High", "Medium", "Low")
 WEEKS = (("this", "TW"), ("next", "NW"))   # assign to "YYYY: Week ##"
+MOVES = (("this", "TW"), ("next", "NW"), ("month", "NM"))   # Personal: move card to list
 ROW_H = 72
 TODAY_ROW_H = 56       # priority rows on page 1
 TODAY_TASKS = 10       # how many the block shows
@@ -52,7 +53,8 @@ MONTHS = ["January", "February", "March", "April", "May", "June", "July",
           "August", "September", "October", "November", "December"]
 MONTHS_SHORT = [m[:3] for m in MONTHS]
 
-NAV_ITEMS = [("Today", "today"), ("Week", "week"), ("Tasks", "tasks"), ("Projects", "projects"), ("Accounting", "accounting")]
+NAV_ITEMS = [("Today", "today"), ("Week", "week"), ("Tasks", "tasks"), ("Personal", "personal"),
+             ("Projects", "projects"), ("Accounting", "accounting")]
 
 # Accounting page: cards with no month yet are listed last under this header.
 NO_MONTH = "No accounting month"
@@ -134,11 +136,17 @@ class SheetData:
     projects_status: SectionStatus
     report: IngestionReport
     unreadable_pngs: list[Path] = field(default_factory=list)
+    # The shared Trello board. Optional: an unset key leaves the Personal page
+    # saying so, and the rest of the sheet is unaffected.
+    trello_cards: list = field(default_factory=list)          # open TrelloCard rows
+    trello_lists: list[str] = field(default_factory=list)     # list names, board order
+    trello_status: SectionStatus = field(default_factory=SectionStatus)
+    trello_members: list = field(default_factory=list)        # {id, name, initials}, me first
 
 
 @dataclass
 class PageSpec:
-    kind: str                # today | week | tasks | projects | accounting
+    kind: str                # today | week | tasks | personal | projects | accounting
     n: int                   # 1-based page number
     week_offset: int = 0     # week pages: -1 / 0 / 1
     items: list = field(default_factory=list)
@@ -154,6 +162,7 @@ class Renderer:
     TASK_ROWS_FULL = 14
     TASK_ROWS_WITH_BOX = 14
     ASANA_ROWS = 20
+    PERSONAL_ROWS = 14          # list headers + cards per Personal page, box included
     PROJECT_ROWS = 22           # section headers + cards per Projects page
 
     def __init__(self, data: SheetData, out_pdf: Path, out_layout: Path):
@@ -181,6 +190,11 @@ class Renderer:
             pages.append(PageSpec("tasks", len(pages) + 1, items=ch, idx=i,
                                   total=len(chunks), last=i == len(chunks)))
 
+        pers_pages = self._personal_pages()
+        for i, ch in enumerate(pers_pages, 1):
+            pages.append(PageSpec("personal", len(pages) + 1, items=ch, idx=i,
+                                  total=len(pers_pages), last=i == len(pers_pages)))
+
         proj_pages = self._project_pages()
         for i, ch in enumerate(proj_pages, 1):
             pages.append(PageSpec("projects", len(pages) + 1, items=ch, idx=i,
@@ -196,6 +210,32 @@ class Renderer:
     def pipeline(self) -> list:
         """Cards still open in Asana -- what the Projects page shows."""
         return [c for c in self.d.projects if not c.completed]
+
+    def _personal_pages(self) -> list[list[tuple[str, object]]]:
+        """Rows for the Personal page: ("list", name) headers and ("card", card)
+        rows, in board order, cut into pages. A list header never ends a page
+        -- it would announce cards that are on the next one."""
+        rows: list[tuple[str, object]] = []
+        by_list: dict[str, list] = {}
+        for c in self.d.trello_cards:
+            by_list.setdefault(c.list_name, []).append(c)
+        order = list(self.d.trello_lists) + [n for n in by_list if n not in self.d.trello_lists]
+        for name in order:
+            cards = by_list.get(name, [])
+            if not cards:
+                continue
+            rows.append(("list", name))
+            rows.extend(("card", c) for c in cards)
+
+        pages: list[list[tuple[str, object]]] = []
+        while len(rows) > self.PERSONAL_ROWS:
+            cut = self.PERSONAL_ROWS
+            if rows[cut - 1][0] == "list":
+                cut -= 1
+            pages.append(rows[:cut])
+            rows = rows[cut:]
+        pages.append(rows)
+        return pages
 
     def _project_pages(self) -> list[list[tuple[str, list]]]:
         """Group cards by board section, then split into page-sized chunks.
@@ -371,6 +411,27 @@ class Renderer:
                 self.rect(bx, y + PBOX + 4, PBOX, 5, stroke=0, fill=black)
             self.region(f"{rid}|{key}", "week2", page, bx, y, PBOX, PBOX)
         return len(WEEKS) * PBOX + (len(WEEKS) - 1) * gap
+
+    def pick_boxes(self, rid: str, page: int, x, y, options, current, kind: str) -> float:
+        """A row of boxes, one per option, each its own read-back region.
+
+        `current` is the set of keys already in force; those get the bar under
+        the box, never ink inside it, for the reason the other pickers give.
+        `kind` is "pick1" (one of them) or "flag" (any of them).
+        """
+        gap = 8
+        for i, (key, _label) in enumerate(options):
+            bx = x + i * (PBOX + gap)
+            self.rect(bx, y, PBOX, PBOX, stroke=1.5, color=GREY)
+            if key in current:
+                self.rect(bx, y + PBOX + 4, PBOX, 5, stroke=0, fill=black)
+            self.region(f"{rid}|{key}", kind, page, bx, y, PBOX, PBOX)
+        return len(options) * PBOX + (len(options) - 1) * gap
+
+    def pick_header(self, x, y, options) -> None:
+        gap = 8
+        for i, (_key, label) in enumerate(options):
+            self.text(x + i * (PBOX + gap) + PBOX / 2, y, label, FB, 17, GREY, align="center")
 
     def week_header(self, x, y) -> None:
         gap = 8
@@ -727,6 +788,114 @@ class Renderer:
             self.priority_picker_at(f"new{i}", page.n, prio_x, ly)
             self.week_picker(f"new{i}", page.n, week_x, ly)
 
+    def _member_options(self) -> list[tuple[str, str]]:
+        """(member id, box label) per board member -- a single letter, the
+        first of the name, so the column fits over a 38 px box."""
+        return [(m["id"], (m["name"] or m["initials"] or "?")[0].upper()) for m in self.d.trello_members]
+
+    def _personal_columns(self) -> tuple[float, float]:
+        """(move x, member x): the two picker groups, right of the name."""
+        n_mem = max(1, len(self._member_options()))
+        mem_w = n_mem * PBOX + (n_mem - 1) * 8
+        move_w = len(MOVES) * PBOX + (len(MOVES) - 1) * 8
+        mem_x = PAGE_W - M - TASK_DUE_COL - mem_w
+        return mem_x - 20 - move_w, mem_x
+
+    def page_personal(self, page: PageSpec):
+        """The shared Trello board. Tick = done; TW/NW/NM move the card to that
+        list; a box per person assigns them."""
+        if page.idx == 1:
+            self.c.bookmarkPage("sec-personal")
+        self.nav("personal")
+        y = CONTENT_TOP + 36
+        title = "Personal" + (f"  {page.idx}/{page.total}" if page.total > 1 else "")
+        self.text(M, y, title, FB, 36)
+        people = " / ".join(m["name"] for m in self.d.trello_members)
+        hint = "tick = done  ·  TW/NW/NM = move to this/next week, next month"
+        if people:
+            hint += f"  ·  assign {people}"
+        self.text(PAGE_W - M, y, hint, F, 17, GREY, align="right")
+        self.line(M, y + 16, PAGE_W - M, y + 16, 1.5)
+
+        if not self.d.trello_status.ok:
+            self.unavailable(y + 50, "Trello", self.d.trello_status)
+            self.footer(page)
+            return
+
+        move_x, mem_x = self._personal_columns()
+        members = self._member_options()
+        self.pick_header(move_x, y + 38, MOVES)
+        self.pick_header(mem_x, y + 38, members)
+
+        ry = y + 48
+        for kind, item in page.items:
+            if kind == "list":
+                self.text(M, ry + 48, str(item), FB, 22, GREY)
+                self.line(M, ry + ROW_H - 8, PAGE_W - M, ry + ROW_H - 8, 1, RULE)
+                ry += ROW_H
+                continue
+            c = item
+            overdue = c.due is not None and c.due < self.d.today
+            soon = c.due is not None and c.due <= self.d.today
+            self.checkbox(c.rid, page.n, M, ry + 16)
+            tx = M + BOX + 18
+            name_w = move_x - tx - 16
+            self.text(tx, ry + 36, _fit(c.name, FB if soon else F, 25, name_w), FB if soon else F, 25)
+            # Who it is on, then its labels: the bars under the boxes say the
+            # same thing, but a name reads faster than a bar.
+            who = " & ".join(m["name"] for m in self.d.trello_members if m["id"] in c.member_ids) \
+                or (" & ".join(c.members) if c.members else "")
+            sub = "  ·  ".join(x for x in [who] + list(c.labels) if x)
+            if sub:
+                self.text(tx, ry + 62, _fit(sub, F, 17, name_w), F, 17, GREY)
+
+            due = _due_label(c.due, self.d.today) if c.due else "—"
+            self.text(PAGE_W - M, ry + 44, due, FB if overdue else F, 20,
+                      black if overdue else GREY, align="right")
+            self.pick_boxes(c.rid, page.n, move_x, ry + 12, MOVES, {c.list_key}, "pick1")
+            if members:
+                self.pick_boxes(c.rid, page.n, mem_x, ry + 12, members, set(c.member_ids), "flag")
+
+            self.line(M, ry + PRIO_ROW_H, PAGE_W - M, ry + PRIO_ROW_H, 0.75, RULE)
+            ry += PRIO_ROW_H
+
+        if not page.items and page.idx == 1:
+            self.text(M, ry + 44, "Nothing open on the board.", F, 24, GREY)
+            ry += ROW_H
+
+        self._new_personal_box(page, max(ry + 24, PAGE_H - 60 - NEW_BOX_H))
+        self.footer(page)
+
+    def _new_personal_box(self, page: PageSpec, top: float) -> None:
+        """Ruled lines for handwritten cards, each with the same pickers as the
+        rows above: TW/NW/NM files the new card into that list, a person-box
+        puts them on it. Unmarked, a line lands in the inbox list."""
+        box_h = PAGE_H - 60 - top
+        lines = max(NEW_BOX_LINES, int(box_h // 78))
+        line_h = box_h / lines
+        move_x, mem_x = self._personal_columns()
+        members = self._member_options()
+
+        self.text(M, top - 12, "New personal tasks", FB, 26)
+        self.text(M + 290, top - 12, "one per line  ·  goes to Trello", F, 17, GREY)
+        self.pick_header(move_x, top - 12, MOVES)
+        self.pick_header(mem_x, top - 12, members)
+        self.rect(M, top, PAGE_W - 2 * M, box_h, stroke=2)
+        for i in range(1, lines):
+            self.line(M, top + i * line_h, PAGE_W - M, top + i * line_h, 0.75, RULE)
+
+        # The writing area stops short of the pickers so a long title does not
+        # run its ink into the boxes and read as a choice.
+        self.region("newpersonal", "newtasks", page.n, M, top,
+                    move_x - M - 12, box_h, int(line_h))
+
+        box_y = (line_h - PBOX) / 2
+        for i in range(lines):
+            ly = top + i * line_h + box_y
+            self.pick_boxes(f"newp{i}", page.n, move_x, ly, MOVES, set(), "pick1")
+            if members:
+                self.pick_boxes(f"newp{i}", page.n, mem_x, ly, members, set(), "flag")
+
     def page_projects(self, page: PageSpec):
         """The pipeline board, grouped by section, in board order.
 
@@ -897,7 +1066,8 @@ class Renderer:
 
     def render(self) -> None:
         draw = {"today": self.page_today, "week": self.page_week, "tasks": self.page_tasks,
-                "projects": self.page_projects, "accounting": self.page_accounting}
+                "personal": self.page_personal, "projects": self.page_projects,
+                "accounting": self.page_accounting}
         for page in self.pages:
             draw[page.kind](page)
             self.c.showPage()

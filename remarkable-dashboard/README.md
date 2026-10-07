@@ -138,6 +138,64 @@ Right-click the `.bat` → **Send to → Desktop (create shortcut)** for an icon
 
 Everything below is the same thing from a terminal.
 
+## Personal tasks from Trello
+
+The **Personal** tab is the Tasks page for life outside work: one Trello board
+shared with your partner, every open card listed under the list it sits in,
+with who it is on, its labels and when it is due. Each row carries:
+
+- a **tick box** — the card moves to the board's **Done** list on the next
+  sync, or is archived if the board has no such list;
+- **TW / NW / NM** — move the card to the *this week*, *next week* or *next
+  month* list (`TRELLO_LIST_THIS_WEEK` and friends name them). A bar under a
+  box shows the list the card is in now;
+- one box **per board member** — assign that person to the card. A bar under
+  the box shows who is on it already. Boxes only add people; take someone off
+  in Trello. Names come from Trello; `TRELLO_NAMES=Arcadie:Adrian` prints a
+  different one.
+
+Write a line in the **New personal tasks** box and it becomes a card in the
+first list (set `TRELLO_INBOX_LIST` to choose another). Each ruled line has
+the same TW / NW / NM and per-person boxes, so a new card can be filed into a
+week and assigned as it is written.
+
+Cards in the Done list, archived cards and cards whose due date is marked
+complete stay off the page. A board with a long backlog would make the page a
+long one, so `TRELLO_LISTS` picks which lists appear, in which order:
+
+```
+TRELLO_LISTS=To-do this week,To-do next week,To-do this month,Concurrent tasks
+TRELLO_INBOX_LIST=To-do this week
+```
+
+Emoji and punctuation in the real list names are ignored when matching, so
+`📅 To-do this week` on the board is `To-do this week` here.
+
+### Connecting it
+
+Trello wants an API key and a token, both tied to your own Trello account:
+
+1. Open <https://trello.com/power-ups/admin> and click **New** to make a
+   Power-Up. Any name and workspace will do — it exists only to own the key.
+2. On the Power-Up's **API key** tab, **Generate a new API key**. Copy it into
+   `TRELLO_KEY` in `.env`.
+3. On the same tab, click the **Token** link next to the key, allow it, and copy
+   the token into `TRELLO_TOKEN`.
+4. Leave `TRELLO_BOARD` blank if the token sees exactly one board; otherwise
+   put the board's exact name there.
+
+Then:
+
+```powershell
+py -m daily_sheet doctor      # "Trello  ok  <you> · board 'Hjemme' · 4 open card(s) · done list: Done · new cards go to: To do"
+py -m daily_sheet generate --dry-run
+```
+
+The token can read and write every board the account sees, so treat it like
+the Asana token: it lives in `.env` and nowhere else. Without the key and token
+the Personal page simply says it is unavailable and the rest of the sheet is
+unaffected.
+
 ## The same buttons on your phone
 
 `serve.py` is the window as a web page. It runs the same
@@ -158,7 +216,7 @@ listed as well for wifi-only use:
 
 ```
 Daily Sheet server on http://100.70.141.75:8080
-    Tailscale  http://100.70.141.75:8080   (MagicDNS: http://minipc:8080)
+    Tailscale  http://100.70.141.75:8080   (MagicDNS: http://mini-server:8080)
     Office LAN http://192.168.1.40:8080   (wifi only)
 
 On the phone, open:
@@ -198,7 +256,7 @@ a lock on the cabinet, not a front door.
 installed on the mini PC and the phone, and the mini PC gets a stable address
 that works on the office wifi and on 5G alike without opening anything to the
 internet. Use the Tailscale address in the phone's bookmark
-(`http://minipc:8080`) and it keeps working from both.
+(`http://mini-server:8080`) and it keeps working from both.
 
 ### One machine, not two
 
@@ -302,7 +360,7 @@ usually nothing to install — and if the feature is off, the script turns it on
 
 ```powershell
 .\connect.ps1                                  # the saved machine
-.\connect.ps1 -Target minipc -User adrian      # a different one
+.\connect.ps1 -Target mini-server -User adrian      # a different one
 .\connect.ps1 -Command "py -m daily_sheet doctor"   # one command, then out
 .\connect.ps1 -Forget                          # ask me again next time
 ```
@@ -584,7 +642,8 @@ PC at the PIN screen no longer stops the sheet: this is what lost the sheet on
 |---|---|---|
 | reMarkable Daily Sheet | every 15 min | `run.ps1 -Auto`: sheet from 08:00, then sync ticks |
 | reMarkable Sheet Server | at startup | `serve.py` on :8080 (the phone page) |
-| Claude remote control | every 5 min | headless `claude remote-control --name Mini-server`; the same remote chat is reattached after every reboot (id kept in `outemote-session.txt`); visible in claude.ai/code and the mobile app |
+| Claude remote control | every 5 min | headless `claude remote-control --name Mini-server`; the same remote chat is reattached after every reboot (id kept in `out
+emote-session.txt`); visible in claude.ai/code and the mobile app |
 emote-session.txt`); visible in claude.ai/code and the mobile app |
 | reMarkable Boot Check | 3 min after boot | `boot-check.ps1`: writes `outoot-report-*.txt` and a `boot-check:` line in `runs.log` |
 

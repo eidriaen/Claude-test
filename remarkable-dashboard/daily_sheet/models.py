@@ -100,6 +100,30 @@ class ProjectCard:
 
 
 @dataclass
+class TrelloCard:
+    """One open card on the shared personal board.
+
+    `members` are initials, so a glance says whose it is -- the board is shared,
+    and a card nobody is on reads as "either of us".
+    """
+    id: str
+    name: str
+    list_name: str
+    due: Optional[date] = None
+    members: list[str] = field(default_factory=list)       # initials, for display
+    member_ids: list[str] = field(default_factory=list)    # Trello member ids
+    labels: list[str] = field(default_factory=list)
+    url: str = ""
+    list_key: str = ""           # "this" | "next" | "month" when it sits in one of the move targets
+
+    @property
+    def rid(self) -> str:
+        """Region id on the sheet. Prefixed so read-back can tell a Trello tick
+        from an Asana one without a lookup -- the two live in different systems."""
+        return f"trello:{self.id}"
+
+
+@dataclass
 class SectionStatus:
     """Per-source fetch status so a failing source still ships the sheet."""
     ok: bool = True
@@ -110,7 +134,11 @@ class SectionStatus:
 class IngestionReport:
     completed_private: list[str] = field(default_factory=list)
     completed_asana: list[str] = field(default_factory=list)
+    completed_trello: list[str] = field(default_factory=list)
     added: list[str] = field(default_factory=list)
+    added_trello: list[str] = field(default_factory=list)   # new cards from the Personal page
+    moved: list[str] = field(default_factory=list)          # "card -> To-do next week"
+    assigned: list[str] = field(default_factory=list)       # "card -> Siri"
     priorities: list[str] = field(default_factory=list)   # "task -> High"
     weeks: list[str] = field(default_factory=list)        # "task -> 2026: Week 38"
     unreadable: list[str] = field(default_factory=list)   # paths to PNG strips
@@ -118,7 +146,7 @@ class IngestionReport:
 
     @property
     def completed(self) -> int:
-        return len(self.completed_private) + len(self.completed_asana)
+        return len(self.completed_private) + len(self.completed_asana) + len(self.completed_trello)
 
     def summary(self) -> str:
         parts = [f"Completed {self.completed}"]
@@ -130,6 +158,12 @@ class IngestionReport:
         if self.added:
             added += " (" + ", ".join(self.added[:4]) + (", …" if len(self.added) > 4 else "") + ")"
         parts.append(added)
+        if self.added_trello:
+            parts.append(f"Trello +{len(self.added_trello)}")
+        if self.moved:
+            parts.append(f"Moved {len(self.moved)}")
+        if self.assigned:
+            parts.append(f"Assigned {len(self.assigned)}")
         parts.append(f"Unreadable {len(self.unreadable)}")
         return " · ".join(parts)
 

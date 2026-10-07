@@ -69,7 +69,7 @@ ACTIONS: dict[str, Action] = {
     ),
     "doctor": Action(
         "Check connections", ["doctor"],
-        "Tests rmapi, calendar, Asana and the API key",
+        "Tests rmapi, calendar, Asana, Trello and the API key",
     ),
 }
 

@@ -1,0 +1,14 @@
+{
+  "members": [
+    {"id": "m-adrian", "name": "Adrian", "initials": "A"},
+    {"id": "m-siri", "name": "Siri", "initials": "S"}
+  ],
+  "cards": [
+    {"id": "5f1a0000000000000000a001", "name": "Bestille time hos tannlegen", "list": "To do", "due_on": "-1", "members": ["m-adrian"], "labels": ["Helse"]},
+    {"id": "5f1a0000000000000000a002", "name": "Kjøpe gave til mamma", "list": "To do", "due_on": "2", "members": ["m-adrian", "m-siri"]},
+    {"id": "5f1a0000000000000000a003", "name": "Booke hytte for høstferien", "list": "To do", "due_on": "", "members": ["m-siri"], "labels": ["Reise"]},
+    {"id": "5f1a0000000000000000a004", "name": "Male gjerdet", "list": "This weekend", "due_on": "4", "members": [], "list_key": "this"},
+    {"id": "5f1a0000000000000000a005", "name": "Rydde boden", "list": "This weekend", "due_on": "", "members": ["m-adrian"], "list_key": "this"},
+    {"id": "5f1a0000000000000000a006", "name": "Ringe forsikringsselskapet om bilen", "list": "Waiting", "due_on": "7", "members": ["m-siri"], "labels": ["Bil"]}
+  ]
+}

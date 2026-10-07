@@ -34,6 +34,10 @@ INSET = 7                   # px trimmed off each edge to exclude the printed bo
 MODEL = "claude-opus-5"
 
 
+class LayoutMismatch(ValueError):
+    """The annotated PDF is not the sheet the layout describes."""
+
+
 @dataclass
 class Marks:
     """What the pen said on yesterday's sheet."""
@@ -43,6 +47,10 @@ class Marks:
     set_week: dict[str, str] = field(default_factory=dict)      # task gid -> this|next
     new_task_rows: list = field(default_factory=list)           # ruled rows that carry writing
     new_tasks: list[str] = field(default_factory=list)        # raw lines, unparsed
+    new_personal: list[str] = field(default_factory=list)     # Personal page lines -> Trello
+    new_personal_rows: list = field(default_factory=list)     # ruled rows those lines sit on
+    picks: dict[str, str] = field(default_factory=dict)       # pick1: row id -> chosen key
+    flags: dict[str, list[str]] = field(default_factory=dict) # flag: row id -> every key ticked
     notes: str = ""
     unreadable: list = field(default_factory=list)            # PNG strips, or a note
     ink: dict[str, float] = field(default_factory=dict)       # region id -> ratio (debug)
@@ -198,6 +206,14 @@ def read_marks(pdf: Path, layout_path: Path, api_key: str, debug_dir: Path | Non
     size = tuple(layout["page_size"])
     regions = [Region.from_json(d) for d in layout["regions"]]
     images = page_images(pdf, size)
+    # Regions are pixel boxes on numbered pages; against a different sheet they
+    # land on printed text and read as ticks. The page count is the cheapest
+    # proof that this is the sheet the layout was written for.
+    expected = layout.get("pages")
+    if expected and len(images) != expected:
+        raise LayoutMismatch(
+            f"{pdf.name} has {len(images)} pages but the layout describes {expected}; "
+            f"not reading marks off the wrong sheet")
     marks = Marks()
 
     if debug_dir:
@@ -269,6 +285,35 @@ def read_marks(pdf: Path, layout_path: Path, api_key: str, debug_dir: Path | Non
             continue
         marks.set_week[rid] = found[0][1]
 
+    # 1d. Generic pickers. "pick1" is one-of-N with the same ambiguity rule as
+    # above; "flag" is any-of-N, every inked box counts. Which action a pick
+    # stands for is the caller's business -- the id carries the row and key.
+    picked: dict[str, list[tuple[float, str]]] = {}
+    for r in (r for r in regions if r.kind == "pick1"):
+        if r.page - 1 >= len(images) or "|" not in r.id:
+            continue
+        rid, key = r.id.rsplit("|", 1)
+        ratio = ink_ratio(images[r.page - 1], r)
+        marks.ink[f"pick1:{r.id}"] = round(ratio, 4)
+        if ratio >= CHECK_MIN:
+            picked.setdefault(rid, []).append((ratio, key))
+
+    for rid, found in picked.items():
+        found.sort(reverse=True)
+        if len(found) > 1 and found[0][0] < found[1][0] * 1.6:
+            marks.unreadable.append(f"pick for {rid}: {', '.join(k for _, k in found)} all marked")
+            continue
+        marks.picks[rid] = found[0][1]
+
+    for r in (r for r in regions if r.kind == "flag"):
+        if r.page - 1 >= len(images) or "|" not in r.id:
+            continue
+        rid, key = r.id.rsplit("|", 1)
+        ratio = ink_ratio(images[r.page - 1], r)
+        marks.ink[f"flag:{r.id}"] = round(ratio, 4)
+        if ratio >= CHECK_MIN and key not in marks.flags.get(rid, []):
+            marks.flags.setdefault(rid, []).append(key)
+
     # 2. priority boxes — ink gate first, then one digit through Claude
     for r in (r for r in regions if r.kind == "priority"):
         if r.page - 1 >= len(images):
@@ -306,6 +351,11 @@ def read_marks(pdf: Path, layout_path: Path, api_key: str, debug_dir: Path | Non
             continue
         if r.kind == "notes":
             marks.notes = text
+        elif r.id == "newpersonal":
+            # Same box, different destination: these lines become Trello cards,
+            # so they must not be mixed in with the ones bound for Asana.
+            marks.new_personal = _split_task_lines(text, region_img, r, marks)
+            marks.new_personal_rows = _inked_rows(img, r)
         else:
             marks.new_tasks = _split_task_lines(text, region_img, r, marks)
             marks.new_task_rows = _inked_rows(img, r)

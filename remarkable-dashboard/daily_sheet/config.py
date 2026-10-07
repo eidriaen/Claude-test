@@ -22,6 +22,14 @@ class Config:
     asana_pat: str
     asana_board: str
     anthropic_api_key: str
+    trello_key: str
+    trello_token: str
+    trello_board: str
+    trello_done_list: str
+    trello_inbox_list: str
+    trello_lists: list[str]          # lists to show, in order; empty = every list
+    trello_move_lists: dict[str, str]   # picker key -> list name a tick moves the card to
+    trello_names: dict[str, str]        # Trello display name -> name to print
     rmapi_bin: str
     remarkable_folder: str
     remarkable_archive: str
@@ -49,6 +57,21 @@ def load_config(use_fixtures: bool = False, dry_run: bool = False) -> Config:
         asana_board=os.getenv("ASANA_BOARD", "Incoming + active projects").strip()
                     or "Incoming + active projects",
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip(),
+        trello_key=os.getenv("TRELLO_KEY", "").strip(),
+        trello_token=os.getenv("TRELLO_TOKEN", "").strip(),
+        trello_board=os.getenv("TRELLO_BOARD", "").strip(),
+        trello_done_list=os.getenv("TRELLO_DONE_LIST", "Done").strip() or "Done",
+        trello_inbox_list=os.getenv("TRELLO_INBOX_LIST", "").strip(),
+        trello_lists=[x.strip() for x in os.getenv("TRELLO_LISTS", "").split(",") if x.strip()],
+        trello_names=dict(
+            (a.strip().lower(), b.strip())
+            for a, _, b in (x.partition(":") for x in os.getenv("TRELLO_NAMES", "").split(","))
+            if a.strip() and b.strip()),
+        trello_move_lists={
+            "this": os.getenv("TRELLO_LIST_THIS_WEEK", "To-do this week").strip() or "To-do this week",
+            "next": os.getenv("TRELLO_LIST_NEXT_WEEK", "To-do next week").strip() or "To-do next week",
+            "month": os.getenv("TRELLO_LIST_NEXT_MONTH", "To-do next month").strip() or "To-do next month",
+        },
         rmapi_bin=os.getenv("RMAPI_BIN", "rmapi").strip() or "rmapi",
         remarkable_folder=os.getenv("REMARKABLE_FOLDER", "Daily").strip() or "Daily",
         remarkable_archive=os.getenv("REMARKABLE_ARCHIVE", "Archived dailies").strip()

@@ -27,6 +27,7 @@ from .readback import Marks, read_marks, set_strip_dir
 from .remarkable import NoMarksYet, Rmapi, RmapiError
 from .render import SheetData, render_sheet
 from .tasks import TaskStore, parse_pen_line
+from .trello_client import load_trello
 
 
 def log(cfg: Config, msg: str) -> None:
@@ -45,7 +46,7 @@ def sheet_name(d: date) -> str:
 
 # --- steps 1–3: read yesterday back ----------------------------------------
 def ingest_yesterday(cfg: Config, rm: Rmapi, store: TaskStore, asana, today: date,
-                     asana_tasks=None) -> IngestionReport:
+                     asana_tasks=None, trello=None, trello_cards=None) -> IngestionReport:
     """Locate, read back, and archive yesterday's sheet. Never raises."""
     report = IngestionReport()
     yesterday = today - timedelta(days=1)
@@ -73,7 +74,8 @@ def ingest_yesterday(cfg: Config, rm: Rmapi, store: TaskStore, asana, today: dat
         report.note = f"Read-back failed: {type(exc).__name__}: {exc}"
         return report
 
-    apply_marks(marks, store, asana, today, report, asana_tasks=asana_tasks)
+    apply_marks(marks, store, asana, today, report, asana_tasks=asana_tasks, trello=trello,
+                trello_cards=trello_cards)
     write_notes(cfg, marks.notes, yesterday)
 
     try:
@@ -85,7 +87,8 @@ def ingest_yesterday(cfg: Config, rm: Rmapi, store: TaskStore, asana, today: dat
 
 
 def apply_marks(marks: Marks, store: TaskStore, asana, today: date, report: IngestionReport,
-                already_added: set[str] | None = None, asana_tasks=None) -> None:
+                already_added: set[str] | None = None, asana_tasks=None, trello=None,
+                trello_cards=None) -> None:
     """Turn pen marks into task-store and Asana changes. Nothing is destructive.
 
     `already_added` holds titles this sheet has contributed before — sync can run
@@ -103,6 +106,18 @@ def apply_marks(marks: Marks, store: TaskStore, asana, today: date, report: Inge
         if rid in known:
             if (t := store.complete(rid, today)) is not None:
                 report.completed_private.append(t.title)
+        elif rid.startswith("trello:"):
+            # A tick on the Personal page. The prefix is the routing: it says
+            # Trello without a lookup, and keeps a card id from ever being sent
+            # to Asana as if it were a task gid.
+            if trello is None:
+                report.unreadable.append(f"{rid}: ticked, but Trello is not connected")
+                continue
+            try:
+                trello.complete(rid[len("trello:"):])
+                report.completed_trello.append(rid)
+            except Exception as exc:  # noqa: BLE001
+                report.unreadable.append(f"{rid}: {exc}")
         elif asana is not None:
             try:
                 asana.complete(rid)
@@ -174,6 +189,75 @@ def apply_marks(marks: Marks, store: TaskStore, asana, today: date, report: Inge
         if week:
             _assign_week(asana, gid, title, week, report)
 
+    # Personal page pickers: TW/NW/NM moves the card, a person-box assigns them.
+    card_name = {c.rid: c.name for c in (trello_cards or [])}
+    for rid, key in marks.picks.items():
+        if not rid.startswith("trello:"):
+            continue
+        name = card_name.get(rid, rid)
+        if trello is None:
+            report.unreadable.append(f"move '{name}': Trello is not connected")
+            continue
+        try:
+            where = trello.move(rid[len("trello:"):], key)
+            report.moved.append(f"{name} -> {where}")
+        except Exception as exc:  # noqa: BLE001
+            report.unreadable.append(f"move '{name}': {exc}")
+
+    for rid, keys in marks.flags.items():
+        if not rid.startswith("trello:"):
+            continue
+        name = card_name.get(rid, rid)
+        if trello is None:
+            report.unreadable.append(f"assign '{name}': Trello is not connected")
+            continue
+        for member_id in keys:
+            try:
+                if trello.add_member(rid[len("trello:"):], member_id):
+                    report.assigned.append(f"{name} -> {member_id}")
+            except Exception as exc:  # noqa: BLE001
+                report.unreadable.append(f"assign '{name}': {exc}")
+
+    # Lines from the Personal page go to the shared board, not to Asana. Each
+    # ruled row has its own pickers, paired up the same way as above: a
+    # mismatch between inked rows and transcribed lines means the boxes cannot
+    # be trusted to belong to a line, so the card is still made, just unfiled.
+    prows = marks.new_personal_rows
+    ppaired = len(prows) == len([l for l in marks.new_personal if parse_pen_line(l)])
+    pidx = 0
+    for line in marks.new_personal:
+        parsed = parse_pen_line(line)
+        if not parsed:
+            continue
+        title, _prio = parsed
+        row = prows[pidx] if ppaired and pidx < len(prows) else None
+        pidx += 1
+        if title.strip().lower() in seen:
+            continue
+        if trello is None:
+            report.unreadable.append(f"personal '{title}': Trello is not connected")
+            continue
+        try:
+            card_id = trello.create_card(title)
+        except Exception as exc:  # noqa: BLE001
+            report.unreadable.append(f"could not create '{title}' in Trello: {exc}")
+            continue
+        report.added_trello.append(title)
+        if row is None or card_id is None:
+            continue
+        key = marks.picks.get(f"newp{row}", "")
+        if key:
+            try:
+                report.moved.append(f"{title} -> {trello.move(card_id, key)}")
+            except Exception as exc:  # noqa: BLE001
+                report.unreadable.append(f"move '{title}': {exc}")
+        for member_id in marks.flags.get(f"newp{row}", []):
+            try:
+                if trello.add_member(card_id, member_id):
+                    report.assigned.append(f"{title} -> {member_id}")
+            except Exception as exc:  # noqa: BLE001
+                report.unreadable.append(f"assign '{title}': {exc}")
+
     report.unreadable.extend(str(p) for p in marks.unreadable)
 
 
@@ -219,7 +303,7 @@ def write_notes(cfg: Config, marks_notes: str, day: date) -> None:
 
 
 def ingest_today(cfg: Config, rm: Rmapi, store: TaskStore, asana, today: date,
-                 report: IngestionReport, asana_tasks=None) -> bool:
+                 report: IngestionReport, asana_tasks=None, trello=None, trello_cards=None) -> bool:
     """Read marks off today's sheet before we regenerate over the top of it.
 
     Re-running on a day that already has a sheet is a refresh, not a new day:
@@ -255,10 +339,10 @@ def ingest_today(cfg: Config, rm: Rmapi, store: TaskStore, asana, today: date,
     already = {t.lower() for t in state.get("added", [])}
 
     apply_marks(marks, store, asana, today, report, already_added=already,
-                asana_tasks=asana_tasks)
+                asana_tasks=asana_tasks, trello=trello, trello_cards=trello_cards)
     write_notes(cfg, marks.notes, today)
 
-    state["added"] = sorted(already | {t.lower() for t in report.added})
+    state["added"] = sorted(already | {t.lower() for t in report.added + report.added_trello})
     state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
     return True
 
@@ -423,6 +507,9 @@ def sync(cfg: Config, day: date) -> int:
     asana_tasks, asana_status, asana = load_asana(cfg, day)
     if not asana_status.ok:
         log(cfg, f"sync: warn: asana unavailable — {asana_status.error}")
+    trello_cards, _lists, trello_status, trello = load_trello(cfg, day)
+    if not trello_status.ok and trello is not None:
+        log(cfg, f"sync: warn: trello unavailable — {trello_status.error}")
 
     report = IngestionReport()
     try:
@@ -439,11 +526,11 @@ def sync(cfg: Config, day: date) -> int:
         return 1
 
     apply_marks(marks, store, asana, day, report, already_added=already,
-                asana_tasks=asana_tasks)
+                asana_tasks=asana_tasks, trello=trello, trello_cards=trello_cards)
     write_notes(cfg, marks.notes, day)
     store.save()
 
-    state["added"] = sorted(already | {t.lower() for t in report.added})
+    state["added"] = sorted(already | {t.lower() for t in report.added + report.added_trello})
     state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
 
     log(cfg, f"sync {day.isoformat()}: {report.summary()}")
@@ -461,14 +548,20 @@ def generate(cfg: Config, today: date) -> int:
     if not asana_status.ok:
         log(cfg, f"warn: asana unavailable — {asana_status.error}")
 
+    trello_cards, trello_lists, trello_status, trello = load_trello(cfg, today)
+    if not trello_status.ok and trello is not None:
+        log(cfg, f"warn: trello unavailable — {trello_status.error}")
+
     # 1–3. yesterday
-    report = ingest_yesterday(cfg, rm, store, asana, today, asana_tasks=asana_tasks)
+    report = ingest_yesterday(cfg, rm, store, asana, today, asana_tasks=asana_tasks,
+                              trello=trello, trello_cards=trello_cards)
     if report.note:
         log(cfg, f"read-back: {report.note}")
 
     # Same day, second run: this is a refresh of today's sheet, so capture
     # anything ticked on it before the replacement goes up.
-    refreshing = ingest_today(cfg, rm, store, asana, today, report, asana_tasks=asana_tasks)
+    refreshing = ingest_today(cfg, rm, store, asana, today, report, asana_tasks=asana_tasks,
+                              trello=trello, trello_cards=trello_cards)
     if refreshing:
         log(cfg, "refreshing today's sheet — read its marks first")
 
@@ -485,6 +578,19 @@ def generate(cfg: Config, today: date) -> int:
     # what we already have by dropping the ones we just completed.
     done_gids = set(report.completed_asana)
     asana_tasks = [a for a in asana_tasks if a.gid not in done_gids]
+    done_cards = set(report.completed_trello)
+    trello_cards = [c for c in trello_cards if c.rid not in done_cards]
+    if report.moved or report.assigned:
+        # The board changed under us by our own hand; the lists and bars on the
+        # new sheet should show it, so read it again.
+        trello_cards, trello_lists, trello_status, trello = load_trello(cfg, today)
+        trello_cards = [c for c in trello_cards if c.rid not in done_cards]
+    trello_members = []
+    if trello is not None and trello_status.ok:
+        try:
+            trello_members = trello.board_members()
+        except Exception as exc:  # noqa: BLE001
+            log(cfg, f"warn: trello members unavailable — {exc}")
 
     # 5. render
     strips = sorted((cfg.out_dir / "strips").glob("unreadable-*.png")) if (cfg.out_dir / "strips").exists() else []
@@ -499,11 +605,21 @@ def generate(cfg: Config, today: date) -> int:
         projects_status=projects_status,
         report=report,
         unreadable_pngs=strips,
+        trello_cards=trello_cards,
+        trello_lists=trello_lists,
+        trello_status=trello_status,
+        trello_members=trello_members,
     )
     pdf, layout = render_sheet(data, cfg.out_dir)
-    # keep the layout under a dated name so tomorrow's run can find it
-    (cfg.out_dir / f"layout-{today.isoformat()}.json").write_text(
-        layout.read_text(encoding="utf-8"), encoding="utf-8")
+    # Keep the layout under a dated name so tomorrow's run can find it -- but
+    # only for a sheet that actually goes to the tablet. A dry run that wrote
+    # it once left the 15-minute sync measuring a new layout against the old
+    # sheet still on the device, and printed text read as ticks: 17 Trello
+    # cards archived in one pass (2026-10-07). The layout file is a promise
+    # about what is on the tablet, and a dry run makes no such promise.
+    if not cfg.dry_run:
+        (cfg.out_dir / f"layout-{today.isoformat()}.json").write_text(
+            layout.read_text(encoding="utf-8"), encoding="utf-8")
     store.save()
 
     # 6. push
@@ -524,7 +640,8 @@ def generate(cfg: Config, today: date) -> int:
 
     # 7. summary
     log(cfg, f"{today.isoformat()}  {report.summary()}  ·  "
-             f"{len(asana_tasks)} tasks · {sum(not c.completed for c in projects)} projects · "
+             f"{len(asana_tasks)} tasks · {len(trello_cards)} personal · "
+             f"{sum(not c.completed for c in projects)} projects · "
              f"{len(events)} events · {pdf.name}")
     return 0
 
@@ -585,7 +702,7 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("pdf", type=Path)
     c.add_argument("layout", type=Path)
 
-    s = sub.add_parser("sync", help="read today's ticks and push them to Asana now")
+    s = sub.add_parser("sync", help="read today's ticks and push them to Asana and Trello now")
     s.add_argument("--date", help="sync this date's sheet instead of today (YYYY-MM-DD)")
 
     b = sub.add_parser("board", help="show the Asana board the Projects page is built from")
