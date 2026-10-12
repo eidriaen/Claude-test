@@ -1,0 +1,11 @@
+[package]
+name = "mesh-core"
+description = "Mesh data structure and geometry operations, with no window attached"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+glam = { workspace = true }
+
+[dev-dependencies]
