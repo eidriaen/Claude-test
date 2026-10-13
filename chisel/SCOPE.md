@@ -38,7 +38,7 @@ worth deciding early, because they shape everything around them.
 | Modifiers (3ds Max style) | The stack is the interesting part, not the modifiers. Non-destructive, reorderable, collapsible. Start with four: Subdivide, Smooth, Normalise, Transform |
 | Sculpting | Brushes on a dense mesh are straightforward; **dynamic topology is not**. Phase 1: fixed topology with a subdivide step. Phase 2: dynamic tessellation under the brush |
 | Back to "regular model flow" | Falls out of the modifier stack if sculpting is a stack entry with its own cached mesh |
-| Edit poly tools | Select, move, extrude, bevel, inset, bridge, weld. Needs a selection model and an undo system before any of it |
+| Edit poly tools | Select, move, extrude, bevel, inset, bridge, weld. The selection model and undo are in; the tools are next |
 | Texturing | Keep it to assigning and previewing materials. A full paint tool is a different application |
 | CrazyBump-style generator | Very doable and satisfying: height → normal is a sobel filter; AO, curvature and cavity are all derivable. No mesh needed, pure image work |
 | Seamless tiling | Offset-and-blend gets you most of the way; a proper wrap-aware inpaint is better. Half a day for the first version |
@@ -78,9 +78,8 @@ winding agrees. On top of that:
 
 1. ~~**Viewport**~~ — done.
 2. **Import/export** — ~~OBJ, STL~~ done; glTF next, then FBX import.
-3. **Selection and undo** — everything after this depends on both. Getting
-   undo in late is how editors end up with half their operations unable to
-   undo.
+3. ~~**Selection and undo**~~ — done. Snapshot-based, and every mesh edit
+   goes through one path so nothing can quietly become un-undoable.
 4. **Edit poly** — the basic set.
 5. **Modifier stack** — non-destructive, reorderable.
 6. **UV** — planar/box/cylindrical, plus a UV view.

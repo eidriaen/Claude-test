@@ -5,10 +5,15 @@
 //! and what keeps the viewport a view of the data rather than the owner of it.
 
 pub mod camera;
+pub mod history;
 pub mod mesh;
+pub mod pick;
 pub mod normals;
 pub mod primitives;
+pub mod selection;
 
 pub use camera::Camera;
+pub use history::History;
+pub use selection::{Level, Selection};
 pub use mesh::{Mesh, MeshError};
 pub use normals::{orient, recompute_vertex_normals, signed_volume, OrientReport};

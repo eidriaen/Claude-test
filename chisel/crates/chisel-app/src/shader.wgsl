@@ -14,14 +14,17 @@ struct VsOut {
     @builtin(position) clip: vec4<f32>,
     @location(0) world: vec3<f32>,
     @location(1) normal: vec3<f32>,
+    @location(2) selected: f32,
 };
 
 @vertex
-fn vs_main(@location(0) pos: vec3<f32>, @location(1) nrm: vec3<f32>) -> VsOut {
+fn vs_main(@location(0) pos: vec3<f32>, @location(1) nrm: vec3<f32>,
+           @location(2) sel: f32) -> VsOut {
     var out: VsOut;
     out.clip = u.view_proj * vec4<f32>(pos, 1.0);
     out.world = pos;
     out.normal = nrm;
+    out.selected = sel;
     return out;
 }
 
@@ -37,7 +40,10 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     // the viewport should punish you for mid-edit.
     let lambert = abs(dot(n, to_eye));
     let shade = 0.18 + 0.82 * lambert;
-    return vec4<f32>(vec3<f32>(0.62, 0.64, 0.68) * shade, 1.0);
+    // 3ds Max's selection red, mixed rather than replaced so the form still
+    // reads under it.
+    let base = mix(vec3<f32>(0.62, 0.64, 0.68), vec3<f32>(0.90, 0.35, 0.28), in.selected);
+    return vec4<f32>(base * shade, 1.0);
 }
 
 // --- grid ------------------------------------------------------------------

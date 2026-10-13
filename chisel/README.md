@@ -28,9 +28,14 @@ hides exactly what you are looking for).
 | Zoom | Wheel |
 | Frame selection | Z |
 | Wireframe only / wire-on-shaded | F3 / F4 |
-| Sub-object level | 1 vertex · 2 edge · 3 border · 4 polygon · 5 element |
+| Sub-object level | 1 vertex · 2 edge · 3 face · 4 element |
+| Select / add to selection | Click / Ctrl+click |
+| Select all · none · invert | Ctrl+A · Selection menu · Ctrl+I |
+| Undo / redo | Ctrl+Z / Ctrl+Y |
 
-Pressing the sub-object level you are already in leaves it, as Max does.
+Pressing the sub-object level you are already in leaves it, as Max does, and
+changing level **converts** the selection rather than dropping it — pick four
+verts, press 3, and you get the faces they bound.
 
 **Files** — OBJ and STL, in and out. Ctrl+O to open, Ctrl+S to save. Every
 import reports what it had to decide: n-gons triangulated, normals computed
@@ -41,9 +46,19 @@ and leaves the model you had alone.
 Flip all normals that exists to break the mesh so Fix normals has something to
 do.
 
+**Selection** — vertex, edge, face and element, with grow, shrink and invert.
+Selected geometry is tinted in the viewport.
+
+**Undo** — snapshot-based, and everything that changes the mesh goes through
+one path, so nothing can quietly become un-undoable. The selection is part of
+each snapshot: undoing a delete has to put back the selection too, or the next
+operation indexes past the end of an array that just got shorter. A drag
+collapses into a single step, and the stack is bounded by memory rather than
+by a step count.
+
 ## What is tested
 
-49 tests, none of which need a window:
+86 tests, none of which need a window:
 
 - **Normals** — inconsistent winding, wholly inside-out meshes, two shells
   where only one is wrong, open surfaces that must not be turned over,
@@ -58,11 +73,19 @@ do.
 - **STL** — 36 loose corners welding back into 8 vertices, a binary file whose
   header happens to say "solid", truncation, and face normals being recomputed
   rather than trusted.
+- **Selection** — level conversion both ways, grow and shrink as properties
+  rather than counts, element selection taking a whole connected piece, and
+  pruning indices the mesh no longer has.
+- **Picking** — Möller–Trumbore against known geometry, the nearest face
+  winning over the one behind it, back faces staying pickable, and a click on
+  empty space picking nothing.
+- **Undo** — redo branches discarded on a new edit, a 200-step drag collapsing
+  to one, the memory budget holding, and one step always surviving however
+  heavy the mesh.
 
 The viewport itself has not been looked at by human eyes yet. It compiles and
 the maths behind it is checked, but the first run may well need adjusting.
 
 ## Not yet
 
-glTF and FBX import, selection, undo, edit poly, modifiers, UV, sculpt, the
-texture generator. Order and reasoning in [SCOPE.md](SCOPE.md).
+glTF and FBX import, edit poly, modifiers, UV, sculpt, the texture generator. Order and reasoning in [SCOPE.md](SCOPE.md).

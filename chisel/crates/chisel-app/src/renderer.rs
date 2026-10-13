@@ -21,6 +21,10 @@ struct Uniforms {
 struct Vertex {
     pos: [f32; 3],
     nrm: [f32; 3],
+    /// 1.0 when this vertex is part of the current selection. A per-vertex
+    /// float rather than a uniform, so the whole selection is one draw call
+    /// instead of one per selected face.
+    selected: f32,
 }
 
 #[repr(C)]
@@ -99,7 +103,7 @@ impl Renderer {
         let mesh_layout = wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Vertex>() as u64,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3],
+            attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32],
         };
         let grid_layout = wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<GridVertex>() as u64,
@@ -184,7 +188,7 @@ impl Renderer {
     }
 
     /// Upload a mesh. Called when the mesh changes, not every frame.
-    pub fn set_mesh(&mut self, device: &wgpu::Device, mesh: &Mesh) {
+    pub fn set_mesh(&mut self, device: &wgpu::Device, mesh: &Mesh, selected: &[bool]) {
         let normals_ok = mesh.has_normals();
         let verts: Vec<Vertex> = mesh
             .positions
@@ -193,6 +197,7 @@ impl Renderer {
             .map(|(i, p)| Vertex {
                 pos: p.to_array(),
                 nrm: if normals_ok { mesh.normals[i].to_array() } else { [0.0, 1.0, 0.0] },
+                selected: if selected.get(i).copied().unwrap_or(false) { 1.0 } else { 0.0 },
             })
             .collect();
 
