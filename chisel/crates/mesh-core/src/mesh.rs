@@ -134,6 +134,69 @@ impl std::fmt::Display for MeshError {
 impl std::error::Error for MeshError {}
 
 impl Mesh {
+    /// Merge vertices that sit in the same place.
+    ///
+    /// Quantised rather than compared, because floats that should be equal
+    /// often are not, and a tolerance you can hash is far cheaper than one you
+    /// have to search for.
+    ///
+    /// This is what closes the seam on a generated sphere: the wrap-around
+    /// column holds a second copy of every vertex, so each copy averages only
+    /// the faces on its own side and the lighting creases in a visible line.
+    ///
+    /// Returns how many vertices were removed.
+    pub fn weld(&mut self, tolerance: f32) -> usize {
+        use std::collections::HashMap;
+        let before = self.positions.len();
+        let scale = 1.0 / tolerance.max(1e-9);
+        let mut first: HashMap<[i64; 3], u32> = HashMap::new();
+        let mut remap = vec![0u32; before];
+        let mut kept: Vec<usize> = Vec::new();
+
+        for (i, p) in self.positions.iter().enumerate() {
+            let key = [
+                (p.x * scale).round() as i64,
+                (p.y * scale).round() as i64,
+                (p.z * scale).round() as i64,
+            ];
+            match first.get(&key) {
+                Some(&existing) => remap[i] = existing,
+                None => {
+                    let new = kept.len() as u32;
+                    first.insert(key, new);
+                    remap[i] = new;
+                    kept.push(i);
+                }
+            }
+        }
+        if kept.len() == before {
+            return 0;
+        }
+
+        self.positions = kept.iter().map(|&i| self.positions[i]).collect();
+        if self.normals.len() == before {
+            self.normals = kept.iter().map(|&i| self.normals[i]).collect();
+        }
+        if self.uvs.len() == before {
+            // Welding positions merges UV seams too, which is the right
+            // trade-off for cleanup and the wrong one for a textured model.
+            // The caller decides; this only reports what it did.
+            self.uvs = kept.iter().map(|&i| self.uvs[i]).collect();
+        }
+        for i in &mut self.indices {
+            *i = remap[*i as usize];
+        }
+        // Welding can leave a triangle with two corners at the same vertex.
+        self.indices = self
+            .indices
+            .chunks_exact(3)
+            .filter(|t| t[0] != t[1] && t[1] != t[2] && t[2] != t[0])
+            .flatten()
+            .copied()
+            .collect();
+        before - kept.len()
+    }
+
     /// Drop vertices no triangle refers to, remapping the indices.
     ///
     /// Generators and importers both leave these behind -- a pole ring on a UV

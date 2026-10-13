@@ -7,13 +7,16 @@
 pub mod camera;
 pub mod history;
 pub mod mesh;
+pub mod modifier;
 pub mod pick;
 pub mod normals;
 pub mod primitives;
 pub mod selection;
+pub mod transform;
 
 pub use camera::Camera;
 pub use history::History;
 pub use selection::{Level, Selection};
+pub use transform::{Axes, Pivot, Tool};
 pub use mesh::{Mesh, MeshError};
 pub use normals::{orient, recompute_vertex_normals, signed_volume, OrientReport};

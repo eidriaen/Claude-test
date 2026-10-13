@@ -2,12 +2,16 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod panel;
 mod renderer;
 mod viewport;
 
 use eframe::egui;
 use mesh_core::selection::{Level, Selection};
+use mesh_core::modifier::Stack;
+use mesh_core::transform::{self, Pivot, Tool};
 use mesh_core::{normals, pick, primitives, Camera, History, Mesh};
+use panel::{CreateParams, Tab};
 use std::path::PathBuf;
 
 fn main() -> eframe::Result<()> {
@@ -28,10 +32,24 @@ fn main() -> eframe::Result<()> {
 }
 
 pub struct App {
-    mesh: Mesh,
+    pub mesh: Mesh,
     camera: Camera,
     selection: Selection,
     history: History,
+    /// The mesh as built. What the viewport shows is this with the stack run
+    /// over it -- never edit `display` and expect it to survive.
+    pub stack: Stack,
+    pub display: Mesh,
+    pub stack_dirty: bool,
+    /// Bumped whenever the base mesh changes, so the stack's caches know.
+    base_version: u64,
+    pub tool: Tool,
+    pub pivot: Pivot,
+    pub tab: Tab,
+    pub create: CreateParams,
+    pub type_in_move: [f32; 3],
+    pub type_in_rotate: [f32; 3],
+    pub type_in_scale: [f32; 3],
     shaded: bool,
     wireframe: bool,
     grid: bool,
@@ -58,6 +76,7 @@ impl App {
         let wgpu = cc.wgpu_render_state.as_ref().expect("wgpu backend");
         let mut r = renderer::Renderer::new(&wgpu.device, wgpu.target_format);
         r.set_mesh(&wgpu.device, &mesh, &vec![false; mesh.vertex_count()]);
+        let display = mesh.clone();
         wgpu.renderer.write().callback_resources.insert(r);
 
         let mut camera = Camera::default();
@@ -69,6 +88,17 @@ impl App {
             camera,
             selection: Selection::new(Level::Object),
             history: History::default(),
+            stack: Stack::default(),
+            display,
+            stack_dirty: false,
+            base_version: 1,
+            tool: Tool::Select,
+            pivot: Pivot::default(),
+            tab: Tab::Create,
+            create: CreateParams::default(),
+            type_in_move: [0.0; 3],
+            type_in_rotate: [0.0; 3],
+            type_in_scale: [100.0; 3],
             shaded: true,
             wireframe: false,
             grid: true,
@@ -121,6 +151,64 @@ impl App {
         }
     }
 
+    pub fn affected_count(&self) -> usize {
+        transform::affected(&self.mesh, &self.selection).len()
+    }
+
+    /// Run the stack and hand the result to the viewport.
+    fn rebuild_display(&mut self) {
+        self.display = self.stack.evaluate(&self.mesh, self.base_version);
+        self.stack_dirty = false;
+        self.dirty = true;
+    }
+
+    pub fn collapse_stack(&mut self) {
+        self.history.push("Collapse stack", &self.mesh, &self.selection);
+        self.stack.collapse(&mut self.mesh, self.base_version);
+        self.base_version += 1;
+        self.selection.prune(&self.mesh);
+        self.status = "stack collapsed into the mesh".into();
+        self.rebuild_display();
+    }
+
+    pub fn apply_type_in(&mut self, tool: Tool) {
+        let verts = transform::affected(&self.mesh, &self.selection);
+        if verts.is_empty() {
+            self.status = "nothing selected".into();
+            return;
+        }
+        let label = tool.label().to_string();
+        let (mv, rot, scl) = (self.type_in_move, self.type_in_rotate, self.type_in_scale);
+        let pivot_mode = self.pivot;
+        self.edit(&label, |m| {
+            let pivot = transform::pivot_point(m, &verts, pivot_mode);
+            match tool {
+                Tool::Move => {
+                    transform::translate(m, &verts, glam::Vec3::from(mv));
+                    format!("moved {} vertex(es)", verts.len())
+                }
+                Tool::Rotate => {
+                    for (axis, degrees) in [
+                        (glam::Vec3::X, rot[0]),
+                        (glam::Vec3::Y, rot[1]),
+                        (glam::Vec3::Z, rot[2]),
+                    ] {
+                        if degrees != 0.0 {
+                            transform::rotate(m, &verts, pivot, axis, degrees.to_radians());
+                        }
+                    }
+                    format!("rotated {} vertex(es)", verts.len())
+                }
+                Tool::Scale => {
+                    let f = glam::Vec3::new(scl[0], scl[1], scl[2]) / 100.0;
+                    transform::scale(m, &verts, pivot, f);
+                    format!("scaled {} vertex(es)", verts.len())
+                }
+                Tool::Select => String::new(),
+            }
+        });
+    }
+
     fn set_level(&mut self, level: Level) {
         self.selection.convert(&self.mesh, level);
         self.status = self.selection.summary();
@@ -134,13 +222,23 @@ impl App {
         self.status = f(&mut self.mesh);
         // Topology may have changed under the selection.
         self.selection.prune(&self.mesh);
-        self.dirty = true;
+        // The stack's caches are keyed on this; without the bump they would
+        // keep serving a mesh built from the shape before the edit.
+        self.base_version += 1;
+        transform::finish(&mut self.mesh);
+        self.rebuild_display();
     }
 
-    /// Which vertices to tint, whatever level the selection is at.
-    fn selected_mask(&self) -> Vec<bool> {
-        let mut mask = vec![false; self.mesh.vertex_count()];
-        if self.selection.level != Level::Object {
+    /// Which vertices of the *displayed* mesh to tint.
+    ///
+    /// Selection lives on the base mesh, which is what you edit. With a stack
+    /// running, the displayed vertices are different ones entirely and there
+    /// is no honest mapping back, so nothing is highlighted rather than
+    /// highlighting the wrong things. Max solves this by letting you edit at
+    /// the base level of the stack; that comes later.
+    pub fn selected_mask(&self) -> Vec<bool> {
+        let mut mask = vec![false; self.display.vertex_count()];
+        if self.selection.level != Level::Object && self.stack.is_empty() {
             for v in self.selection.to_vertices(&self.mesh) {
                 if let Some(slot) = mask.get_mut(v as usize) {
                     *slot = true;
@@ -187,10 +285,11 @@ impl App {
 
     fn replace_mesh(&mut self, mesh: Mesh, aspect: f32) {
         self.mesh = mesh;
-        if let Some(b) = self.mesh.bounds() {
+        self.base_version += 1;
+        self.rebuild_display();
+        if let Some(b) = self.display.bounds() {
             self.camera.frame(b, aspect);
         }
-        self.dirty = true;
     }
 
     fn new_primitive(&mut self, mesh: Mesh, aspect: f32) {
@@ -198,6 +297,8 @@ impl App {
         // one would bring back a mesh this document no longer has.
         self.history.clear();
         self.selection.clear();
+        self.stack.entries.clear();
+        self.base_version += 1;
         // Forget where the last file came from, or Save would quietly
         // overwrite it with a brand new cube.
         self.path = None;
@@ -205,7 +306,7 @@ impl App {
         self.replace_mesh(mesh, aspect);
     }
 
-    fn keys(&mut self, ctx: &egui::Context, aspect: f32) {
+    fn keys(&mut self, ctx: &egui::Context, _aspect: f32) {
         // The dialog cannot be opened from inside ctx.input(): it blocks, and
         // the input lock would still be held when egui next asks for it.
         let mut open_requested = false;
@@ -215,6 +316,8 @@ impl App {
         let mut select_all = false;
         let mut invert = false;
         let mut level_change = None;
+        let mut tool_change = None;
+        let mut frame_requested = false;
         ctx.input(|i| {
             use egui::Key;
             if i.modifiers.ctrl && i.key_pressed(Key::O) {
@@ -222,6 +325,18 @@ impl App {
             }
             if i.modifiers.ctrl && i.key_pressed(Key::S) {
                 save_requested = true;
+            }
+            if i.key_pressed(Key::W) {
+                tool_change = Some(Tool::Move);
+            }
+            if i.key_pressed(Key::E) {
+                tool_change = Some(Tool::Rotate);
+            }
+            if i.key_pressed(Key::R) {
+                tool_change = Some(Tool::Scale);
+            }
+            if i.key_pressed(Key::Q) {
+                tool_change = Some(Tool::Select);
             }
             if i.key_pressed(Key::F3) {
                 // Max: wireframe only.
@@ -235,9 +350,7 @@ impl App {
                 self.shaded = true;
             }
             if i.key_pressed(Key::Z) {
-                if let Some(b) = self.mesh.bounds() {
-                    self.camera.frame(b, aspect);
-                }
+                frame_requested = true;
             }
             for (key, level) in [
                 (Key::Num1, Level::Vertex),
@@ -421,15 +534,26 @@ impl eframe::App for App {
                 ui.label(&self.status);
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.label(format!(
-                        "{} verts · {} tris · {} · {} undo step(s)",
-                        self.mesh.vertex_count(),
-                        self.mesh.tri_count(),
+                        "{} · {} verts · {} tris{} · {} · {} undo",
+                        self.tool.label(),
+                        self.display.vertex_count(),
+                        self.display.tri_count(),
+                        if self.stack.is_empty() {
+                            String::new()
+                        } else {
+                            format!(" (base {})", self.mesh.tri_count())
+                        },
                         self.selection.summary(),
                         self.history.depth(),
                     ));
                 });
             });
         });
+
+        panel::show(ctx, self, aspect);
+        if self.stack_dirty {
+            self.rebuild_display();
+        }
 
         egui::CentralPanel::default()
             .frame(egui::Frame::none().fill(egui::Color32::from_rgb(38, 38, 42)))

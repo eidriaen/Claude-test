@@ -54,8 +54,9 @@ pub fn show(ui: &mut egui::Ui, app: &mut App, _frame: &mut eframe::Frame) {
     // --- draw --------------------------------------------------------------
     let view_proj = app.camera.view_projection(aspect);
     let eye = app.camera.eye();
+    // The display mesh: the base with the modifier stack run over it.
     let mesh = if app.dirty {
-        Some((app.mesh.clone(), app.selected_mask()))
+        Some((app.display.clone(), app.selected_mask()))
     } else {
         None
     };
