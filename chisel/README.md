@@ -56,8 +56,14 @@ transform type-ins.
 changing the top modifier does not re-run the four below it. The base mesh is
 never touched until you collapse. Subdivide, Smooth and Fix normals to start.
 
+**Transform gizmo** — axis bars with arrowheads for Move, rings for Rotate,
+boxes for Scale, plus plane handles and a centre box. Drawn over the model,
+because a gizmo behind it is a gizmo you cannot grab, and held at a constant
+size on screen. The handle under the cursor brightens before you commit. A
+whole drag is one undo step.
+
 **Transforms** — move, rotate and scale a selection about its centre or the
-origin, by dragging the type-in fields or typing an exact number.
+origin, by gizmo or by typing an exact number.
 
 **Selection** — vertex, edge, face and element, with grow, shrink and invert.
 Selected geometry is tinted in the viewport.
@@ -71,7 +77,7 @@ by a step count.
 
 ## What is tested
 
-113 tests, none of which need a window:
+129 tests, none of which need a window:
 
 - **Normals** — inconsistent winding, wholly inside-out meshes, two shells
   where only one is wrong, open surfaces that must not be turned over,
@@ -105,12 +111,15 @@ by a step count.
 - **Modifier stack** — the base mesh never changing, order mattering, a
   disabled modifier not serving a stale cache, and subdivide sharing midpoints
   between neighbouring faces.
+- **Gizmo** — grabbing each handle, an axis drag landing exactly on the axis
+  and never creeping into the other two, looking straight down an axis being
+  refused rather than guessed at, a rotation taking the short way round the
+  seam, and the gizmo holding its screen size at any zoom. One of these caught
+  a sign error that dragged the selection the wrong way down the axis.
 
 The viewport itself has not been looked at by human eyes yet. It compiles and
 the maths behind it is checked, but the first run may well need adjusting.
 
 ## Not yet
 
-A transform gizmo in the viewport (the type-ins work; the on-screen handles do
-not exist yet), edit poly, glTF and FBX import, UV, sculpt, the texture
-generator. Order and reasoning in [SCOPE.md](SCOPE.md).
+Edit poly, glTF and FBX import, UV, sculpt, the texture generator. Order and reasoning in [SCOPE.md](SCOPE.md).

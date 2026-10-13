@@ -2,6 +2,7 @@
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod gizmo_draw;
 mod panel;
 mod renderer;
 mod viewport;
@@ -50,6 +51,9 @@ pub struct App {
     pub type_in_move: [f32; 3],
     pub type_in_rotate: [f32; 3],
     pub type_in_scale: [f32; 3],
+    /// The handle under the cursor, and the drag in progress.
+    pub hot_handle: Option<mesh_core::gizmo::Handle>,
+    pub drag: Option<Drag>,
     shaded: bool,
     wireframe: bool,
     grid: bool,
@@ -60,6 +64,22 @@ pub struct App {
     /// Where this mesh came from, so Save can go back there without asking.
     path: Option<PathBuf>,
 }
+
+/// A transform drag in progress.
+pub struct Drag {
+    pub handle: mesh_core::gizmo::Handle,
+    /// Where the pointer was last frame, in NDC.
+    pub last: glam::Vec2,
+    /// Where the gizmo was when the drag began. Held still for the whole drag:
+    /// recomputing it from the moving selection makes the gizmo chase the
+    /// cursor and the motion accelerate away.
+    pub origin: Vec3Wrapper,
+    /// One token for the whole drag, so it undoes as a single step.
+    pub token: String,
+}
+
+/// glam::Vec3 by another name, so the field above reads as what it is.
+pub type Vec3Wrapper = glam::Vec3;
 
 /// A filename to offer in the save dialog.
 fn suggested_name(mesh: &Mesh) -> String {
@@ -99,6 +119,8 @@ impl App {
             type_in_move: [0.0; 3],
             type_in_rotate: [0.0; 3],
             type_in_scale: [100.0; 3],
+            hot_handle: None,
+            drag: None,
             shaded: true,
             wireframe: false,
             grid: true,
@@ -149,6 +171,136 @@ impl App {
             }
             Err(e) => self.status = format!("could not save: {e}"),
         }
+    }
+
+    /// Where the gizmo sits: the middle of what a transform would affect.
+    pub fn gizmo_origin(&self) -> Option<Vec3Wrapper> {
+        if self.tool == Tool::Select {
+            return None;
+        }
+        let verts = transform::affected(&self.mesh, &self.selection);
+        if verts.is_empty() {
+            return None;
+        }
+        Some(transform::pivot_point(&self.mesh, &verts, self.pivot))
+    }
+
+    /// Begin, continue, or finish a gizmo drag. Returns true when the gizmo
+    /// consumed the input, so the viewport knows not to also select.
+    pub fn gizmo_input(
+        &mut self,
+        aspect: f32,
+        pointer: Option<glam::Vec2>,
+        pressed: bool,
+        released: bool,
+    ) -> bool {
+        use mesh_core::gizmo;
+
+        let Some(origin) = self.gizmo_origin() else {
+            self.drag = None;
+            self.hot_handle = None;
+            return false;
+        };
+        let scale = gizmo::screen_scale(&self.camera, origin, 0.11);
+
+        if released {
+            self.drag = None;
+        }
+        let Some(ndc) = pointer else {
+            self.hot_handle = None;
+            return self.drag.is_some();
+        };
+
+        if self.drag.is_none() {
+            self.hot_handle =
+                gizmo::pick_handle(&self.camera, aspect, origin, scale, ndc, self.tool);
+            if pressed {
+                if let Some(handle) = self.hot_handle {
+                    self.drag = Some(Drag {
+                        handle,
+                        last: ndc,
+                        origin,
+                        token: format!("gizmo-{}", self.history.depth()),
+                    });
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // A drag in progress.
+        let Some(drag) = self.drag.as_ref() else { return false };
+        let (handle, last, origin, token) =
+            (drag.handle, drag.last, drag.origin, drag.token.clone());
+        if (ndc - last).length() < 1e-6 {
+            return true;
+        }
+
+        let verts = transform::affected(&self.mesh, &self.selection);
+        if verts.is_empty() {
+            return true;
+        }
+        // One history entry for the whole drag.
+        self.history
+            .push_coalescing(self.tool.label(), token, &self.mesh, &self.selection);
+
+        let camera = self.camera;
+        let tool = self.tool;
+        match tool {
+            Tool::Move => {
+                let delta = if let Some(axis) = handle.axis() {
+                    let a = gizmo::closest_point_on_axis(&camera, aspect, origin, axis, last);
+                    let b = gizmo::closest_point_on_axis(&camera, aspect, origin, axis, ndc);
+                    match (a, b) {
+                        (Some(a), Some(b)) => b - a,
+                        _ => glam::Vec3::ZERO,
+                    }
+                } else {
+                    // A plane handle, or the centre box: drag in the plane
+                    // facing the camera.
+                    let normal = handle.plane_normal().unwrap_or(-camera.forward());
+                    let a = gizmo::ray_plane(&camera, aspect, origin, normal, last);
+                    let b = gizmo::ray_plane(&camera, aspect, origin, normal, ndc);
+                    match (a, b) {
+                        (Some(a), Some(b)) => b - a,
+                        _ => glam::Vec3::ZERO,
+                    }
+                };
+                transform::translate(&mut self.mesh, &verts, delta);
+            }
+            Tool::Rotate => {
+                if let Some(axis) = handle.axis() {
+                    if let Some(angle) =
+                        gizmo::drag_angle(&camera, aspect, origin, axis, last, ndc)
+                    {
+                        transform::rotate(&mut self.mesh, &verts, origin, axis, angle);
+                    }
+                }
+            }
+            Tool::Scale => {
+                if let Some(factor) =
+                    gizmo::drag_scale_factor(&camera, aspect, origin, last, ndc)
+                {
+                    let f = match handle.axis() {
+                        // An axis handle scales only along that axis; the rest
+                        // stay at 1 or the model distorts in two directions.
+                        Some(axis) => glam::Vec3::ONE + axis * (factor - 1.0),
+                        None => glam::Vec3::splat(factor),
+                    };
+                    transform::scale(&mut self.mesh, &verts, origin, f);
+                }
+            }
+            Tool::Select => {}
+        }
+
+        transform::finish(&mut self.mesh);
+        self.base_version += 1;
+        self.rebuild_display();
+        if let Some(d) = self.drag.as_mut() {
+            d.last = ndc;
+        }
+        self.status = format!("{} {} vertex(es)", tool.label(), verts.len());
+        true
     }
 
     pub fn affected_count(&self) -> usize {

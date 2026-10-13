@@ -29,15 +29,18 @@ struct Vertex {
 
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
-struct GridVertex {
+struct LineVertex {
     pos: [f32; 3],
-    shade: f32,
+    colour: [f32; 3],
 }
 
 pub struct Renderer {
     mesh_pipeline: wgpu::RenderPipeline,
     wire_pipeline: wgpu::RenderPipeline,
     grid_pipeline: wgpu::RenderPipeline,
+    /// Same vertices, but drawn over everything: a gizmo behind the model is
+    /// a gizmo you cannot grab.
+    overlay_pipeline: wgpu::RenderPipeline,
     uniform_buf: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
 
@@ -50,6 +53,9 @@ pub struct Renderer {
 
     grid: wgpu::Buffer,
     grid_count: u32,
+    /// The gizmo, rebuilt whenever it moves.
+    overlay: wgpu::Buffer,
+    overlay_count: u32,
 }
 
 impl Renderer {
@@ -105,10 +111,10 @@ impl Renderer {
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32],
         };
-        let grid_layout = wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<GridVertex>() as u64,
+        let line_layout = wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<LineVertex>() as u64,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32],
+            attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3],
         };
 
         let make = |label: &str,
@@ -116,7 +122,8 @@ impl Renderer {
                     fs: &str,
                     buffers: &[wgpu::VertexBufferLayout],
                     topology: wgpu::PrimitiveTopology,
-                    bias: wgpu::DepthBiasState| {
+                    bias: wgpu::DepthBiasState,
+                    on_top: bool| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(label),
                 layout: Some(&pipeline_layout),
@@ -142,6 +149,10 @@ impl Renderer {
                 },
                 depth_stencil: depth_state.clone().map(|mut d| {
                     d.bias = bias;
+                    if on_top {
+                        d.depth_compare = wgpu::CompareFunction::Always;
+                        d.depth_write_enabled = false;
+                    }
                     d
                 }),
                 multisample: Default::default(),
@@ -155,11 +166,13 @@ impl Renderer {
         let wire_bias = wgpu::DepthBiasState { constant: -2, slope_scale: -1.0, clamp: 0.0 };
 
         let mesh_pipeline = make("mesh", "vs_main", "fs_main", std::slice::from_ref(&mesh_layout),
-                                 wgpu::PrimitiveTopology::TriangleList, Default::default());
+                                 wgpu::PrimitiveTopology::TriangleList, Default::default(), false);
         let wire_pipeline = make("wire", "vs_main", "fs_main", &[mesh_layout],
-                                 wgpu::PrimitiveTopology::LineList, wire_bias);
-        let grid_pipeline = make("grid", "grid_vs", "grid_fs", &[grid_layout],
-                                 wgpu::PrimitiveTopology::LineList, Default::default());
+                                 wgpu::PrimitiveTopology::LineList, wire_bias, false);
+        let grid_pipeline = make("grid", "line_vs", "line_fs", std::slice::from_ref(&line_layout),
+                                 wgpu::PrimitiveTopology::LineList, Default::default(), false);
+        let overlay_pipeline = make("gizmo", "line_vs", "line_fs", &[line_layout],
+                                    wgpu::PrimitiveTopology::LineList, Default::default(), true);
 
         let (grid, grid_count) = build_grid(device, 20, 1.0);
         let empty = |label| {
@@ -175,6 +188,7 @@ impl Renderer {
             mesh_pipeline,
             wire_pipeline,
             grid_pipeline,
+            overlay_pipeline,
             uniform_buf,
             bind_group,
             vertices: empty("vertices"),
@@ -184,6 +198,8 @@ impl Renderer {
             wire_count: 0,
             grid,
             grid_count,
+            overlay: empty("overlay"),
+            overlay_count: 0,
         }
     }
 
@@ -228,6 +244,23 @@ impl Renderer {
         self.wire_count = wire.len() as u32;
     }
 
+    /// Replace the overlay lines. `verts` is pairs of (position, colour).
+    pub fn set_overlay(&mut self, device: &wgpu::Device, verts: &[([f32; 3], [f32; 3])]) {
+        let data: Vec<LineVertex> = verts
+            .iter()
+            .map(|(pos, colour)| LineVertex { pos: *pos, colour: *colour })
+            .collect();
+        self.overlay_count = data.len() as u32;
+        if data.is_empty() {
+            return;
+        }
+        self.overlay = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("overlay"),
+            contents: bytemuck::cast_slice(&data),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+    }
+
     pub fn prepare(&mut self, queue: &wgpu::Queue, view_proj: Mat4, eye: Vec3, wire: bool) {
         let u = Uniforms {
             view_proj: view_proj.to_cols_array_2d(),
@@ -261,19 +294,33 @@ impl Renderer {
         }
     }
 
+    /// Drawn last and over everything else.
+    pub fn paint_overlay(&self, pass: &mut wgpu::RenderPass<'static>) {
+        if self.overlay_count == 0 {
+            return;
+        }
+        pass.set_bind_group(0, &self.bind_group, &[]);
+        pass.set_pipeline(&self.overlay_pipeline);
+        pass.set_vertex_buffer(0, self.overlay.slice(..));
+        pass.draw(0..self.overlay_count, 0..1);
+    }
+
 }
 
 /// Home grid: a line per unit, brighter on every tenth and on the axes.
 fn build_grid(device: &wgpu::Device, half: i32, step: f32) -> (wgpu::Buffer, u32) {
-    let mut v: Vec<GridVertex> = Vec::new();
+    let mut v: Vec<LineVertex> = Vec::new();
     let extent = half as f32 * step;
     for i in -half..=half {
         let t = i as f32 * step;
-        let shade = if i == 0 { 0.45 } else if i % 10 == 0 { 0.30 } else { 0.22 };
-        v.push(GridVertex { pos: [-extent, 0.0, t], shade });
-        v.push(GridVertex { pos: [extent, 0.0, t], shade });
-        v.push(GridVertex { pos: [t, 0.0, -extent], shade });
-        v.push(GridVertex { pos: [t, 0.0, extent], shade });
+        let s = if i == 0 { 0.45 } else if i % 10 == 0 { 0.30 } else { 0.22 };
+        // The world axes get their colours, as in Max: red X, blue Z.
+        let along_x = if i == 0 { [0.45, 0.28, 0.28] } else { [s, s, s] };
+        let along_z = if i == 0 { [0.28, 0.32, 0.45] } else { [s, s, s] };
+        v.push(LineVertex { pos: [-extent, 0.0, t], colour: along_x });
+        v.push(LineVertex { pos: [extent, 0.0, t], colour: along_x });
+        v.push(LineVertex { pos: [t, 0.0, -extent], colour: along_z });
+        v.push(LineVertex { pos: [t, 0.0, extent], colour: along_z });
     }
     let buf = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
         label: Some("grid"),

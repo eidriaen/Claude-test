@@ -48,20 +48,20 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 
 // --- grid ------------------------------------------------------------------
 
-struct GridOut {
+struct LineOut {
     @builtin(position) clip: vec4<f32>,
-    @location(0) shade: f32,
+    @location(0) colour: vec3<f32>,
 };
 
 @vertex
-fn grid_vs(@location(0) pos: vec3<f32>, @location(1) shade: f32) -> GridOut {
-    var out: GridOut;
+fn line_vs(@location(0) pos: vec3<f32>, @location(1) colour: vec3<f32>) -> LineOut {
+    var out: LineOut;
     out.clip = u.view_proj * vec4<f32>(pos, 1.0);
-    out.shade = shade;
+    out.colour = colour;
     return out;
 }
 
 @fragment
-fn grid_fs(in: GridOut) -> @location(0) vec4<f32> {
-    return vec4<f32>(vec3<f32>(in.shade), 1.0);
+fn line_fs(in: LineOut) -> @location(0) vec4<f32> {
+    return vec4<f32>(in.colour, 1.0);
 }

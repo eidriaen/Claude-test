@@ -36,10 +36,26 @@ pub fn show(ui: &mut egui::Ui, app: &mut App, _frame: &mut eframe::Frame) {
         }
     }
 
+    // The gizmo gets first refusal on the pointer, because its handles sit on
+    // top of the model and a click meant for a handle must not also select the
+    // face behind it.
+    let pointer_ndc = ui.input(|i| i.pointer.latest_pos()).and_then(|pos| {
+        rect.contains(pos).then(|| {
+            Vec2::new(
+                (pos.x - rect.left()) / rect.width() * 2.0 - 1.0,
+                1.0 - (pos.y - rect.top()) / rect.height() * 2.0,
+            )
+        })
+    });
+    let pressed = response.drag_started_by(egui::PointerButton::Primary);
+    let released = response.drag_stopped_by(egui::PointerButton::Primary)
+        || ui.input(|i| i.pointer.primary_released());
+    let gizmo_busy = app.gizmo_input(aspect, pointer_ndc, pressed, released);
+
     // A left click selects. Only on release, and only if the pointer barely
     // moved: otherwise every orbit that happens to start on a vertex would
     // also select it.
-    if response.clicked() {
+    if response.clicked() && !gizmo_busy {
         if let Some(pos) = response.interact_pointer_pos() {
             let ndc = Vec2::new(
                 (pos.x - rect.left()) / rect.width() * 2.0 - 1.0,
@@ -71,6 +87,10 @@ pub fn show(ui: &mut egui::Ui, app: &mut App, _frame: &mut eframe::Frame) {
             shaded: app.shaded,
             wireframe: app.wireframe || !app.shaded,
             upload: mesh,
+            overlay: app.gizmo_origin().map(|origin| {
+                let scale = mesh_core::gizmo::screen_scale(&app.camera, origin, 0.11);
+                crate::gizmo_draw::build(app.tool, origin, scale, app.hot_handle)
+            }),
         },
     ));
     ui.ctx().request_repaint();
@@ -85,6 +105,10 @@ struct ViewportCallback {
     /// Some when the mesh or the selection changed this frame. Uploading every
     /// frame would rebuild the buffers for a camera move.
     upload: Option<(mesh_core::Mesh, Vec<bool>)>,
+    /// The gizmo's lines, rebuilt every frame: it is a few hundred vertices
+    /// and it moves with the camera, so caching it would cost more than it
+    /// saves.
+    overlay: Option<Vec<crate::gizmo_draw::Line>>,
 }
 
 impl egui_wgpu::CallbackTrait for ViewportCallback {
@@ -100,6 +124,11 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
             if let Some((mesh, selected)) = &self.upload {
                 r.set_mesh(device, mesh, selected);
             }
+            if let Some(lines) = &self.overlay {
+                r.set_overlay(device, lines);
+            } else {
+                r.set_overlay(device, &[]);
+            }
             r.prepare(queue, self.view_proj, self.eye, false);
         }
         Vec::new()
@@ -113,6 +142,7 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
     ) {
         if let Some(r) = resources.get::<Renderer>() {
             r.paint(pass, self.grid, self.shaded, self.wireframe);
+            r.paint_overlay(pass);
         }
     }
 }
