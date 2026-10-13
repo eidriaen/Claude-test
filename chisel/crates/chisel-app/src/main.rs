@@ -9,6 +9,7 @@ mod viewport;
 
 use eframe::egui;
 use mesh_core::selection::{Level, Selection};
+use mesh_core::editpoly;
 use mesh_core::modifier::Stack;
 use mesh_core::transform::{self, Pivot, Tool};
 use mesh_core::{normals, pick, primitives, Camera, History, Mesh};
@@ -52,6 +53,10 @@ pub struct App {
     pub type_in_rotate: [f32; 3],
     pub type_in_scale: [f32; 3],
     /// The handle under the cursor, and the drag in progress.
+    /// Amounts the edit-poly buttons use, kept between uses as Max does.
+    pub extrude_height: f32,
+    pub inset_amount: f32,
+    pub weld_threshold: f32,
     pub hot_handle: Option<mesh_core::gizmo::Handle>,
     pub drag: Option<Drag>,
     shaded: bool,
@@ -63,6 +68,20 @@ pub struct App {
     dirty: bool,
     /// Where this mesh came from, so Save can go back there without asking.
     path: Option<PathBuf>,
+}
+
+/// The edit-poly operations, so the panel can name one without each button
+/// carrying its own copy of the plumbing.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum EditOp {
+    Extrude,
+    Inset,
+    Bevel,
+    Tessellate,
+    WeldSelected,
+    WeldByDistance,
+    DeleteFaces,
+    DeleteVertices,
 }
 
 /// A transform drag in progress.
@@ -119,6 +138,9 @@ impl App {
             type_in_move: [0.0; 3],
             type_in_rotate: [0.0; 3],
             type_in_scale: [100.0; 3],
+            extrude_height: 0.5,
+            inset_amount: 0.1,
+            weld_threshold: 0.01,
             hot_handle: None,
             drag: None,
             shaded: true,
@@ -303,6 +325,75 @@ impl App {
         true
     }
 
+    /// The selected faces, as the edit-poly operations want them.
+    pub fn selected_faces(&self) -> Vec<u32> {
+        if self.selection.level == Level::Face {
+            let mut v: Vec<u32> = self.selection.items.iter().copied().collect();
+            v.sort_unstable();
+            v
+        } else {
+            Vec::new()
+        }
+    }
+
+    pub fn selected_vertices(&self) -> Vec<u32> {
+        if self.selection.level == Level::Object {
+            return Vec::new();
+        }
+        let mut v: Vec<u32> = self.selection.to_vertices(&self.mesh).into_iter().collect();
+        v.sort_unstable();
+        v
+    }
+
+    /// Run an edit-poly operation and keep the result selected, so that
+    /// extrude-extrude-extrude works the way it does in Max.
+    pub fn edit_poly(&mut self, label: &str, op: EditOp) {
+        let faces = self.selected_faces();
+        let verts = self.selected_vertices();
+        let (height, inset_amount, threshold) =
+            (self.extrude_height, self.inset_amount, self.weld_threshold);
+
+        let mut became: Option<Vec<u32>> = None;
+        self.history.push(label, &self.mesh, &self.selection);
+        let summary = {
+            let m = &mut self.mesh;
+            match op {
+                EditOp::Extrude => {
+                    let (r, new) = editpoly::extrude(m, &faces, height, 0.0);
+                    became = Some(new);
+                    r.summary()
+                }
+                EditOp::Inset => {
+                    let (r, new) = editpoly::inset(m, &faces, inset_amount);
+                    became = Some(new);
+                    r.summary()
+                }
+                EditOp::Bevel => {
+                    let (r, new) = editpoly::extrude(m, &faces, height, inset_amount);
+                    became = Some(new);
+                    r.summary()
+                }
+                EditOp::Tessellate => editpoly::tessellate(m, &faces).summary(),
+                EditOp::WeldSelected => editpoly::weld_selected(m, &verts).summary(),
+                EditOp::WeldByDistance => editpoly::weld_by_distance(m, threshold).summary(),
+                EditOp::DeleteFaces => editpoly::delete_faces(m, &faces).summary(),
+                EditOp::DeleteVertices => editpoly::delete_vertices(m, &verts).summary(),
+            }
+        };
+
+        match became {
+            // The new faces keep their indices, so the selection carries over.
+            Some(new) if !new.is_empty() => {
+                self.selection.items = new.into_iter().collect();
+            }
+            _ => self.selection.prune(&self.mesh),
+        }
+        self.selection.prune(&self.mesh);
+        self.status = summary;
+        self.base_version += 1;
+        self.rebuild_display();
+    }
+
     pub fn affected_count(&self) -> usize {
         transform::affected(&self.mesh, &self.selection).len()
     }
@@ -470,6 +561,7 @@ impl App {
         let mut level_change = None;
         let mut tool_change = None;
         let mut frame_requested = false;
+        let mut delete_requested = false;
         ctx.input(|i| {
             use egui::Key;
             if i.modifiers.ctrl && i.key_pressed(Key::O) {
@@ -489,6 +581,9 @@ impl App {
             }
             if i.key_pressed(Key::Q) {
                 tool_change = Some(Tool::Select);
+            }
+            if i.key_pressed(Key::Delete) || i.key_pressed(Key::Backspace) {
+                delete_requested = true;
             }
             if i.key_pressed(Key::F3) {
                 // Max: wireframe only.

@@ -5,6 +5,7 @@
 //! and what keeps the viewport a view of the data rather than the owner of it.
 
 pub mod camera;
+pub mod editpoly;
 pub mod gizmo;
 pub mod history;
 pub mod mesh;

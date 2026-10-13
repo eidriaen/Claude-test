@@ -38,7 +38,7 @@ worth deciding early, because they shape everything around them.
 | Modifiers (3ds Max style) | The stack is the interesting part, not the modifiers. Non-destructive, reorderable, collapsible. Start with four: Subdivide, Smooth, Normalise, Transform |
 | Sculpting | Brushes on a dense mesh are straightforward; **dynamic topology is not**. Phase 1: fixed topology with a subdivide step. Phase 2: dynamic tessellation under the brush |
 | Back to "regular model flow" | Falls out of the modifier stack if sculpting is a stack entry with its own cached mesh |
-| Edit poly tools | Select, move, extrude, bevel, inset, bridge, weld. The selection model and undo are in; the tools are next |
+| Edit poly tools | **Done**: extrude, inset, bevel, tessellate, weld, delete. Bridge and chamfer still to come |
 | Texturing | Keep it to assigning and previewing materials. A full paint tool is a different application |
 | CrazyBump-style generator | Very doable and satisfying: height → normal is a sobel filter; AO, curvature and cavity are all derivable. No mesh needed, pure image work |
 | Seamless tiling | Offset-and-blend gets you most of the way; a proper wrap-aware inpaint is better. Half a day for the first version |

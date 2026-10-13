@@ -65,6 +65,11 @@ whole drag is one undo step.
 **Transforms** — move, rotate and scale a selection about its centre or the
 origin, by gizmo or by typing an exact number.
 
+**Edit poly** — Extrude, Inset, Bevel, Tessellate, Weld (selected, or by
+distance), and Delete. Extruding leaves the new faces selected, so
+extrude-extrude-extrude builds a stack the way it does in Max. Delete removes
+faces at face level and vertices anywhere else.
+
 **Selection** — vertex, edge, face and element, with grow, shrink and invert.
 Selected geometry is tinted in the viewport.
 
@@ -77,7 +82,7 @@ by a step count.
 
 ## What is tested
 
-129 tests, none of which need a window:
+150 tests, none of which need a window:
 
 - **Normals** — inconsistent winding, wholly inside-out meshes, two shells
   where only one is wrong, open surfaces that must not be turned over,
@@ -111,6 +116,10 @@ by a step count.
 - **Modifier stack** — the base mesh never changing, order mattering, a
   disabled modifier not serving a stale cache, and subdivide sharing midpoints
   between neighbouring faces.
+- **Edit poly** — extrusions staying closed and correctly wound, an interior
+  edge growing no wall, an inset larger than its face not turning inside out,
+  welding dropping the faces that collapsed, and a four-deep stack of
+  extrusions landing on an exact triangle count.
 - **Gizmo** — grabbing each handle, an axis drag landing exactly on the axis
   and never creeping into the other two, looking straight down an axis being
   refused rather than guessed at, a rotation taking the short way round the
@@ -122,4 +131,6 @@ the maths behind it is checked, but the first run may well need adjusting.
 
 ## Not yet
 
-Edit poly, glTF and FBX import, UV, sculpt, the texture generator. Order and reasoning in [SCOPE.md](SCOPE.md).
+glTF and FBX import, UV, sculpt, the texture generator. Quads: the mesh is
+triangles throughout, so a "face" is one triangle and extruding a visible quad
+means selecting both of its triangles. Order and reasoning in [SCOPE.md](SCOPE.md).

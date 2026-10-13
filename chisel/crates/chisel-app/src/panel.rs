@@ -4,7 +4,7 @@
 //! the stack, and the transform type-ins are always visible because typing an
 //! exact number is half of why anyone opens a modelling tool.
 
-use crate::App;
+use crate::{App, EditOp};
 use eframe::egui;
 use mesh_core::modifier::{FixNormals, Smooth, Subdivide};
 use mesh_core::primitives;
@@ -224,7 +224,91 @@ fn modify(ui: &mut egui::Ui, app: &mut App) {
 
     ui.add_space(12.0);
     ui.separator();
+    edit_poly(ui, app);
+
+    ui.add_space(12.0);
+    ui.separator();
     transform_fields(ui, app);
+}
+
+fn edit_poly(ui: &mut egui::Ui, app: &mut App) {
+    use mesh_core::selection::Level;
+
+    ui.label(egui::RichText::new("Edit poly").strong());
+    let level = app.selection.level;
+    let faces = app.selection.level == Level::Face && !app.selection.items.is_empty();
+    let verts = level != Level::Object && !app.selection.is_empty();
+
+    if level == Level::Object {
+        ui.label(
+            egui::RichText::new("Pick a sub-object level (1–4) to edit the mesh.")
+                .small()
+                .weak(),
+        );
+    }
+
+    ui.add(egui::Slider::new(&mut app.extrude_height, -5.0..=5.0).text("Height"));
+    ui.add(egui::Slider::new(&mut app.inset_amount, 0.0..=2.0).text("Inset"));
+
+    ui.horizontal(|ui| {
+        if ui
+            .add_enabled(faces, egui::Button::new("Extrude"))
+            .on_disabled_hover_text("Select faces first (press 3)")
+            .clicked()
+        {
+            app.edit_poly("Extrude", EditOp::Extrude);
+        }
+        if ui.add_enabled(faces, egui::Button::new("Inset")).clicked() {
+            app.edit_poly("Inset", EditOp::Inset);
+        }
+        if ui
+            .add_enabled(faces, egui::Button::new("Bevel"))
+            .on_hover_text("Extrude and inset together")
+            .clicked()
+        {
+            app.edit_poly("Bevel", EditOp::Bevel);
+        }
+    });
+    ui.horizontal(|ui| {
+        if ui
+            .add_enabled(faces, egui::Button::new("Tessellate"))
+            .on_hover_text("Split each selected face into three")
+            .clicked()
+        {
+            app.edit_poly("Tessellate", EditOp::Tessellate);
+        }
+        if ui.add_enabled(faces, egui::Button::new("Delete faces")).clicked() {
+            app.edit_poly("Delete faces", EditOp::DeleteFaces);
+        }
+    });
+
+    ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        if ui
+            .add_enabled(verts, egui::Button::new("Weld selected"))
+            .on_hover_text("Merge the selected vertices into one")
+            .clicked()
+        {
+            app.edit_poly("Weld", EditOp::WeldSelected);
+        }
+        if ui.add_enabled(verts, egui::Button::new("Delete verts")).clicked() {
+            app.edit_poly("Delete vertices", EditOp::DeleteVertices);
+        }
+    });
+    ui.horizontal(|ui| {
+        ui.add(
+            egui::DragValue::new(&mut app.weld_threshold)
+                .speed(0.001)
+                .range(0.0001..=1.0),
+        );
+        if ui
+            .button("Weld by distance")
+            .on_hover_text("Merge every pair of vertices closer than this. Closes split seams on imported models.")
+            .clicked()
+        {
+            app.edit_poly("Weld by distance", EditOp::WeldByDistance);
+        }
+    });
 }
 
 fn transform_fields(ui: &mut egui::Ui, app: &mut App) {
