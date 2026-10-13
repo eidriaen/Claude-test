@@ -2,7 +2,7 @@
 # libraries that can be tested without a window.
 [workspace]
 resolver = "3"
-members = ["crates/mesh-core"]
+members = ["crates/mesh-core", "crates/chisel-app"]
 
 [workspace.package]
 version = "0.1.0"
