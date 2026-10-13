@@ -1,0 +1,11 @@
+# Build and test artefacts. These live at the root because the working
+# directory is shared across branches: running one project's tests and then
+# switching branches leaves its caches behind as untracked files on a branch
+# that knows nothing about them.
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# Rust
+target/
