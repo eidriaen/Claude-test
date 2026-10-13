@@ -150,7 +150,7 @@ impl Renderer {
         // with it and stipples as the camera moves.
         let wire_bias = wgpu::DepthBiasState { constant: -2, slope_scale: -1.0, clamp: 0.0 };
 
-        let mesh_pipeline = make("mesh", "vs_main", "fs_main", &[mesh_layout.clone()],
+        let mesh_pipeline = make("mesh", "vs_main", "fs_main", std::slice::from_ref(&mesh_layout),
                                  wgpu::PrimitiveTopology::TriangleList, Default::default());
         let wire_pipeline = make("wire", "vs_main", "fs_main", &[mesh_layout],
                                  wgpu::PrimitiveTopology::LineList, wire_bias);

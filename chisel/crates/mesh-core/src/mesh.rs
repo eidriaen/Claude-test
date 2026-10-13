@@ -83,7 +83,7 @@ impl Mesh {
     /// fail. Checked on import, because a mesh with an out-of-range index
     /// crashes somewhere far from the file that caused it.
     pub fn validate(&self) -> Result<(), MeshError> {
-        if self.indices.len() % 3 != 0 {
+        if !self.indices.len().is_multiple_of(3) {
             return Err(MeshError::IndexCountNotTriangles(self.indices.len()));
         }
         let n = self.positions.len() as u32;

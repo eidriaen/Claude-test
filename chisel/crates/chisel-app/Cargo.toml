@@ -11,6 +11,8 @@ path = "src/main.rs"
 
 [dependencies]
 mesh-core = { path = "../mesh-core" }
+mesh-io = { path = "../mesh-io" }
+rfd = "0.15"
 glam = { workspace = true }
 # x11/wayland are no-ops on Windows and macOS, but winit refuses to compile on
 # Linux without one of them, so they stay in for anyone building here.

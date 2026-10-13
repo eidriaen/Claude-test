@@ -30,7 +30,7 @@ worth deciding early, because they shape everything around them.
 
 | Feature | Verdict |
 |---|---|
-| OBJ, STL, PLY, glTF import/export | Easy. Pure-Rust crates, or hand-written — OBJ is a day |
+| OBJ, STL import/export | **Done**, hand-written. PLY and glTF next |
 | **FBX** | **Import yes, export no.** `fbxcel` reads the binary format. Writing FBX properly needs Autodesk's SDK, which is C++, proprietary, and cannot be shipped in an MIT binary. Recommend: import FBX, export glTF — Unreal and Unity both take glTF happily |
 | **STEP / CAD** | **Possible but heavy.** `truck` has a Rust STEP reader and a tessellator. This is a real B-rep kernel, not a file format: expect weeks, not days, and a large dependency. Worth its own phase |
 | Fix flipped normals | **Done** — see below |
@@ -76,9 +76,8 @@ winding agrees. On top of that:
 
 ## Order of work
 
-1. **Viewport** — wgpu, orbit/pan/zoom, a grid, flat and smooth shading.
-   Nothing is real until you can see it.
-2. **Import/export** — OBJ first, then glTF, then FBX import.
+1. ~~**Viewport**~~ — done.
+2. **Import/export** — ~~OBJ, STL~~ done; glTF next, then FBX import.
 3. **Selection and undo** — everything after this depends on both. Getting
    undo in late is how editors end up with half their operations unable to
    undo.

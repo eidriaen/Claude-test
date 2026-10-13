@@ -32,13 +32,18 @@ hides exactly what you are looking for).
 
 Pressing the sub-object level you are already in leaves it, as Max does.
 
+**Files** — OBJ and STL, in and out. Ctrl+O to open, Ctrl+S to save. Every
+import reports what it had to decide: n-gons triangulated, normals computed
+because the file carried none, directives skipped. A failed import says why
+and leaves the model you had alone.
+
 **Mesh menu** — Fix normals, Recompute normals, Remove unused vertices, and a
 Flip all normals that exists to break the mesh so Fix normals has something to
 do.
 
 ## What is tested
 
-20 tests, none of which need a window:
+49 tests, none of which need a window:
 
 - **Normals** — inconsistent winding, wholly inside-out meshes, two shells
   where only one is wrong, open surfaces that must not be turned over,
@@ -47,11 +52,17 @@ do.
   the poles, pan covering the same screen distance at any zoom, zoom staying
   proportional and never reaching the pivot, framing fitting horizontally as
   well as vertically, and the basis staying orthonormal all the way round.
+- **OBJ** — the same position with two normals becoming two vertices (merging
+  them smooths every hard edge), negative indices, n-gons, 1-D texture
+  coordinates, and errors that name the line and the value.
+- **STL** — 36 loose corners welding back into 8 vertices, a binary file whose
+  header happens to say "solid", truncation, and face normals being recomputed
+  rather than trusted.
 
 The viewport itself has not been looked at by human eyes yet. It compiles and
 the maths behind it is checked, but the first run may well need adjusting.
 
 ## Not yet
 
-Import/export, selection, undo, edit poly, modifiers, UV, sculpt, the texture
-generator. Order and reasoning in [SCOPE.md](SCOPE.md).
+glTF and FBX import, selection, undo, edit poly, modifiers, UV, sculpt, the
+texture generator. Order and reasoning in [SCOPE.md](SCOPE.md).

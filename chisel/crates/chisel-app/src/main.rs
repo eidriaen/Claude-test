@@ -7,6 +7,7 @@ mod viewport;
 
 use eframe::egui;
 use mesh_core::{normals, primitives, Camera, Mesh};
+use std::path::PathBuf;
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
@@ -60,6 +61,17 @@ pub struct App {
     /// orient() is what it tells you, so it needs somewhere to say it.
     status: String,
     dirty: bool,
+    /// Where this mesh came from, so Save can go back there without asking.
+    path: Option<PathBuf>,
+}
+
+/// A filename to offer in the save dialog.
+fn suggested_name(mesh: &Mesh) -> String {
+    if mesh.name.is_empty() {
+        "mesh.obj".to_string()
+    } else {
+        format!("{}.obj", mesh.name)
+    }
 }
 
 impl App {
@@ -83,6 +95,50 @@ impl App {
             grid: true,
             status: "Ready".into(),
             dirty: false,
+            path: None,
+        }
+    }
+
+    fn open(&mut self, aspect: f32) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Meshes", mesh_io::Format::extensions())
+            .pick_file()
+        else {
+            return;
+        };
+        match mesh_io::load(&path) {
+            Ok((mesh, report)) => {
+                let name = path.file_name().unwrap_or_default().to_string_lossy().to_string();
+                self.status = format!("{name}: {}", report.summary());
+                self.path = Some(path);
+                self.replace_mesh(mesh, aspect);
+            }
+            // A failed import must say why and leave what you had alone. The
+            // worst version of this replaces your model with an empty scene
+            // and a shrug.
+            Err(e) => self.status = format!("could not open {}: {e}", path.display()),
+        }
+    }
+
+    fn save_as(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("Wavefront OBJ", &["obj"])
+            .add_filter("STL", &["stl"])
+            .set_file_name(suggested_name(&self.mesh))
+            .save_file()
+        else {
+            return;
+        };
+        self.save_to(path);
+    }
+
+    fn save_to(&mut self, path: PathBuf) {
+        match mesh_io::save(&path, &self.mesh) {
+            Ok(()) => {
+                self.status = format!("saved {}", path.display());
+                self.path = Some(path);
+            }
+            Err(e) => self.status = format!("could not save: {e}"),
         }
     }
 
@@ -94,9 +150,27 @@ impl App {
         self.dirty = true;
     }
 
+    fn new_primitive(&mut self, mesh: Mesh, aspect: f32) {
+        // Forget where the last file came from, or Save would quietly
+        // overwrite it with a brand new cube.
+        self.path = None;
+        self.status = format!("new {}", mesh.name.to_lowercase());
+        self.replace_mesh(mesh, aspect);
+    }
+
     fn keys(&mut self, ctx: &egui::Context, aspect: f32) {
+        // The dialog cannot be opened from inside ctx.input(): it blocks, and
+        // the input lock would still be held when egui next asks for it.
+        let mut open_requested = false;
+        let mut save_requested = false;
         ctx.input(|i| {
             use egui::Key;
+            if i.modifiers.ctrl && i.key_pressed(Key::O) {
+                open_requested = true;
+            }
+            if i.modifiers.ctrl && i.key_pressed(Key::S) {
+                save_requested = true;
+            }
             if i.key_pressed(Key::F3) {
                 // Max: wireframe only.
                 self.shaded = !self.shaded;
@@ -141,16 +215,32 @@ impl eframe::App for App {
         egui::TopBottomPanel::top("menu").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
+                    if ui.button("Open…").clicked() {
+                        self.open(aspect);
+                        ui.close_menu();
+                    }
+                    let can_save = self.path.is_some();
+                    if ui.add_enabled(can_save, egui::Button::new("Save")).clicked() {
+                        if let Some(p) = self.path.clone() {
+                            self.save_to(p);
+                        }
+                        ui.close_menu();
+                    }
+                    if ui.button("Save as…").clicked() {
+                        self.save_as();
+                        ui.close_menu();
+                    }
+                    ui.separator();
                     if ui.button("New cube").clicked() {
-                        self.replace_mesh(primitives::cube(2.0), aspect);
+                        self.new_primitive(primitives::cube(2.0), aspect);
                         ui.close_menu();
                     }
                     if ui.button("New sphere").clicked() {
-                        self.replace_mesh(primitives::sphere(1.0, 32, 24), aspect);
+                        self.new_primitive(primitives::sphere(1.0, 32, 24), aspect);
                         ui.close_menu();
                     }
                     if ui.button("New plane").clicked() {
-                        self.replace_mesh(primitives::plane(4.0), aspect);
+                        self.new_primitive(primitives::plane(4.0), aspect);
                         ui.close_menu();
                     }
                     ui.separator();
